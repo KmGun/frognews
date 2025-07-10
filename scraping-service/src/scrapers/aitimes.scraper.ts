@@ -38,9 +38,9 @@ export class AiTimesScraper {
     try {
       this.browser = await puppeteer.launch({
         headless: false,  // 디버깅을 위해 보이게
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // 시스템 Chrome 사용
-        devtools: true,   // 개발자 도구 자동 열기
-        slowMo: 250,      // 동작을 천천히
+        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        // devtools: true,   // 개발자 도구 자동 열기
+        // slowMo: 250,      // 동작을 천천히
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -57,16 +57,9 @@ export class AiTimesScraper {
       // 뷰포트 설정
       await this.page.setViewport({ width: 1280, height: 720 });
       
-      // 요청 차단 (이미지, 스타일시트 등은 일부만 차단)
-      await this.page.setRequestInterception(true);
-      this.page.on('request', (req: any) => {
-        const resourceType = req.resourceType();
-        if (['stylesheet', 'font'].includes(resourceType)) {
-          req.abort();
-        } else {
-          req.continue();
-        }
-      });
+      // 요청 차단 완전 제거 (일반 브라우저처럼 모든 리소스 로드)
+      // await this.page.setRequestInterception(true);
+      // this.page.on('request', (req: any) => { ... });
 
       scrapingLogger.info('AI타임즈 브라우저 초기화 완료');
     } catch (error) {
@@ -181,13 +174,13 @@ export class AiTimesScraper {
       const content = await this.page.content();
       const $ = cheerio.load(content);
       
-      // 제목 추출
+      // 제목 추출 (AI타임즈 실제 구조에 맞게 수정)
       const titleSelectors = [
-        '.article-header h1',
-        '.news-title h1',
-        '.article-title',
-        '.headline',
-        'h1'
+        'h3.heading',  // AI타임즈 실제 제목 selector
+        '.article-view-header h3',
+        '.aht-title-view',
+        'h1',
+        '.article-header h1'
       ];
       
       let title = '';
@@ -196,13 +189,13 @@ export class AiTimesScraper {
         if (title) break;
       }
       
-      // 본문 추출
+      // 본문 추출 (AI타임즈 실제 구조에 맞게 수정)
       const contentSelectors = [
+        '#article-view-content-div',  // AI타임즈 실제 본문 selector
+        '.article-veiw-body',
         '.article-body',
-        '.news-content', 
         '.article-content',
-        '.story-news',
-        '.news-body'
+        '.news-content'
       ];
       
       let articleContent = '';
@@ -210,19 +203,19 @@ export class AiTimesScraper {
         const contentElem = $(selector).first();
         if (contentElem.length > 0) {
           // 광고나 관련 기사 제거
-          contentElem.find('.ad, .related, .recommend, .social').remove();
+          contentElem.find('.ad, .related, .recommend, .social, .quick-tool, .writer, .article-copy').remove();
           articleContent = contentElem.text().trim();
           if (articleContent) break;
         }
       }
       
-      // 이미지 URL 수집
+      // 이미지 URL 수집 (AI타임즈 실제 구조에 맞게 수정)
       const imageUrls: string[] = [];
       const imageSelectors = [
+        '.photo-layout img',  // AI타임즈 실제 이미지 selector
+        '.article-veiw-body img',
         '.article-body img',
-        '.news-content img',
-        '.article-photo img',
-        '.story-photo img'
+        '.article-content img'
       ];
       
       for (const selector of imageSelectors) {
@@ -303,7 +296,7 @@ export class AiTimesScraper {
     }
   }
 
-  // 전체 스크래핑 프로세스 (비동기 처리)
+  // 전체 스크래핑 프로세스 (순차 처리로 변경)
   async scrapeArticles(): Promise<ScrapingResult> {
     const result: ScrapingResult = {
       success: false,
@@ -328,57 +321,50 @@ export class AiTimesScraper {
 
       scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
 
-      // 2. 각 기사 비동기 처리 (동시 처리 수 제한)
-      const maxConcurrent = 3; // 동시 처리 수 제한
+      // 2. 각 기사를 순차적으로 처리 (동시 처리 제거)
       const articles: Article[] = [];
       
-      for (let i = 0; i < articleLinks.length; i += maxConcurrent) {
-        const batch = articleLinks.slice(i, i + maxConcurrent);
+      for (let i = 0; i < articleLinks.length; i++) {
+        const url = articleLinks[i];
         
-        const batchPromises = batch.map(async (url) => {
-          try {
-            // 각 기사 스크래핑
-            const articleData = await this.scrapeArticleDetails(url);
-            if (!articleData) return null;
-
-            // OpenAI 요약 생성
-            const summary = await this.generateSummary(articleData.title, articleData.content);
-
-            const article: Article = {
-              title: articleData.title,
-              content: articleData.content,
-              summary,
-              url: articleData.originalUrl,
-              source: 'AI타임즈',
-              publishedAt: new Date(),
-              imageUrl: articleData.imageUrls[0], // 첫 번째 이미지만 저장
-              createdAt: new Date()
-            };
-
-            scrapingLogger.info(`처리 완료: ${article.title.substring(0, 30)}...`);
-            return article;
-
-          } catch (error) {
-            const errorMsg = `기사 처리 실패: ${url} - ${(error as Error).message}`;
-            scrapingLogger.error(errorMsg);
-            result.errors.push(errorMsg);
-            return null;
+        try {
+          scrapingLogger.info(`처리 중: ${i + 1}/${articleLinks.length} - ${url}`);
+          
+          // 각 기사 스크래핑
+          const articleData = await this.scrapeArticleDetails(url);
+          if (!articleData) {
+            scrapingLogger.warn(`기사 데이터 없음: ${url}`);
+            continue;
           }
-        });
 
-        // 배치 단위로 처리
-        const batchResults = await Promise.all(batchPromises);
-        
-        // null이 아닌 결과만 추가
-        for (const article of batchResults) {
-          if (article) {
-            articles.push(article);
+          // OpenAI 요약 생성
+          const summary = await this.generateSummary(articleData.title, articleData.content);
+
+          const article: Article = {
+            title: articleData.title,
+            content: articleData.content,
+            summary,
+            url: articleData.originalUrl,
+            source: 'AI타임즈',
+            publishedAt: new Date(),
+            imageUrl: articleData.imageUrls[0], // 첫 번째 이미지만 저장
+            createdAt: new Date()
+          };
+
+          articles.push(article);
+          scrapingLogger.info(`처리 완료: ${article.title.substring(0, 30)}...`);
+
+          // 기사 간 지연 (일반 사용자처럼)
+          if (i < articleLinks.length - 1) {
+            const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
+            scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
+            await this.delay(delayTime);
           }
-        }
 
-        // 요청 간 지연
-        if (i + maxConcurrent < articleLinks.length) {
-          await this.delay(2000); // 2초 대기
+        } catch (error) {
+          const errorMsg = `기사 처리 실패: ${url} - ${(error as Error).message}`;
+          scrapingLogger.error(errorMsg);
+          result.errors.push(errorMsg);
         }
       }
 
