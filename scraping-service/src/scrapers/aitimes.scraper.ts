@@ -4,8 +4,35 @@ import axios from 'axios';
 import { Article, NewsSource, ScrapingResult } from '../types';
 import { SCRAPING_CONFIG } from '../config';
 import { scrapingLogger } from '../utils/logger';
+import { getAiTimesSummaryPrompt, getTitleSummaryPrompt, getContentSummaryPrompt, getDetailForSummaryLinePrompt } from '../prompts/aitimes.summary.prompt';
+import OpenAI from "openai";
 
-// OpenAI 클라이언트 추가
+// OpenAI 클라이언트 생성 (API 키 필요)
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export async function requestTitleSummary(title: string): Promise<string> {
+  const prompt = getTitleSummaryPrompt(title);
+
+  const response = await client.responses.create({
+    model: "gpt-4.1",
+    input: prompt
+  });
+
+  // 응답에서 요약 텍스트 추출
+  return response.output_text;
+}
+
+export async function requestContentSummary(content: string): Promise<string> {
+  const prompt = getContentSummaryPrompt(content);
+
+  const response = await client.responses.create({
+    model: "gpt-4.1",
+    input: prompt
+  });
+
+  return response.output_text;
+}
+
 interface OpenAIResponse {
   choices: Array<{
     message: {
@@ -16,9 +43,20 @@ interface OpenAIResponse {
 
 interface ArticleData {
   title: string;
-  content: string;
+  content: string;        // ← 전체 본문 텍스트
   imageUrls: string[];
   originalUrl: string;
+  publishedAt?: Date; // 작성일 추가
+}
+
+// 3줄 요약 한 줄에 대한 세부 설명 요청 함수
+async function requestDetailForSummaryLine(summaryLine: string, content: string): Promise<string> {
+  const prompt = getDetailForSummaryLinePrompt(summaryLine, content);
+  const response = await client.responses.create({
+    model: "gpt-4.1",
+    input: prompt
+  });
+  return response.output_text;
 }
 
 export class AiTimesScraper {
@@ -230,6 +268,21 @@ export class AiTimesScraper {
         });
       }
 
+      // 작성일 추출
+      let publishedAt: Date | undefined = undefined;
+      // clock 아이콘이 있는 li에서 텍스트 추출
+      const dateElem = $('li i.icon-clock-o').parent();
+      let dateText = dateElem.text().trim();
+      // 예시: '입력 2025.06.24 08:43'
+      if (dateText) {
+        const match = dateText.match(/(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})/);
+        if (match) {
+          const dateStr = match[1].replace(/\./g, '-'); // 2025-06-24 08:43
+          publishedAt = new Date(dateStr.replace(' ', 'T')+':00'); // ISO 포맷
+          if (isNaN(publishedAt.getTime())) publishedAt = undefined;
+        }
+      }
+
       if (!title || !articleContent) {
         scrapingLogger.warn(`필수 정보 누락: ${articleUrl}`);
         return null;
@@ -239,7 +292,8 @@ export class AiTimesScraper {
         title: title.trim(),
         content: articleContent.trim(),
         imageUrls,
-        originalUrl: articleUrl
+        originalUrl: articleUrl,
+        publishedAt
       };
 
     } catch (error) {
@@ -248,7 +302,91 @@ export class AiTimesScraper {
     }
   }
 
-  // OpenAI API로 요약 생성
+  // 제목 요약 생성
+  async generateTitleSummary(title: string): Promise<string> {
+    try {
+      // 테스트 모드인 경우 가짜 요약 반환
+      if (this.openaiApiKey === 'test-key') {
+        const testSummary = `[테스트 모드] ${title}에 대한 제목 요약`;
+        scrapingLogger.debug(`테스트 제목 요약 생성: ${title.substring(0, 50)}...`);
+        return testSummary;
+      }
+
+      const prompt = getTitleSummaryPrompt(title);
+
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 100,
+        temperature: 0.3
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.openaiApiKey}`
+        },
+        timeout: 30000
+      });
+
+      const data: OpenAIResponse = response.data;
+      const summary = data.choices[0]?.message?.content?.trim() || '';
+      
+      scrapingLogger.debug(`제목 요약 생성 완료: ${title.substring(0, 50)}...`);
+      return summary;
+
+    } catch (error) {
+      scrapingLogger.error('OpenAI 제목 요약 생성 실패', error as Error);
+      return '제목 요약 생성에 실패했습니다.';
+    }
+  }
+
+  // 본문 요약 생성
+  async generateContentSummary(content: string): Promise<string> {
+    try {
+      // 테스트 모드인 경우 가짜 요약 반환
+      if (this.openaiApiKey === 'test-key') {
+        const testSummary = `[테스트 모드] 본문 요약 (길이: ${content.length}자)`;
+        scrapingLogger.debug(`테스트 본문 요약 생성`);
+        return testSummary;
+      }
+
+      const prompt = getContentSummaryPrompt(content);
+
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 300,
+        temperature: 0.3
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.openaiApiKey}`
+        },
+        timeout: 30000
+      });
+
+      const data: OpenAIResponse = response.data;
+      const summary = data.choices[0]?.message?.content?.trim() || '';
+      
+      scrapingLogger.debug(`본문 요약 생성 완료`);
+      return summary;
+
+    } catch (error) {
+      scrapingLogger.error('OpenAI 본문 요약 생성 실패', error as Error);
+      return '본문 요약 생성에 실패했습니다.';
+    }
+  }
+
+  // 기존 요약 함수 (하위 호환성을 위해 유지)
   async generateSummary(title: string, content: string): Promise<string> {
     try {
       // 테스트 모드인 경우 가짜 요약 반환
@@ -258,13 +396,7 @@ export class AiTimesScraper {
         return testSummary;
       }
 
-      const prompt = `다음 AI 관련 뉴스 기사를 한국어로 간결하게 요약해주세요. 핵심 내용과 중요한 포인트만 포함해주세요.
-
-제목: ${title}
-
-본문: ${content}
-
-요약:`;
+      const prompt = getAiTimesSummaryPrompt(title, content);
 
       const response = await axios.post('https://api.openai.com/v1/chat/completions', {
         model: 'gpt-4o',
@@ -319,44 +451,71 @@ export class AiTimesScraper {
         return result;
       }
 
+      console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
       scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
 
-      // 2. 각 기사를 순차적으로 처리 (동시 처리 제거)
+      // 2. 각 기사를 순차적으로 처리 (테스트용으로 5개만)
       const articles: Article[] = [];
       
-      for (let i = 0; i < articleLinks.length; i++) {
+      const testLimit = 5; // 테스트용으로 5개만 처리
+      const limitedLinks = articleLinks.slice(0, testLimit);
+      
+      console.log(`🧪 테스트 모드: ${limitedLinks.length}개 기사만 처리`);
+      scrapingLogger.info(`테스트 모드: ${limitedLinks.length}개 기사만 처리`);
+      
+      for (let i = 0; i < limitedLinks.length; i++) {
         const url = articleLinks[i];
         
         try {
-          scrapingLogger.info(`처리 중: ${i + 1}/${articleLinks.length} - ${url}`);
+          console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
+          scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
           
           // 각 기사 스크래핑
+          console.log(`  📖 기사 스크래핑 중...`);
           const articleData = await this.scrapeArticleDetails(url);
           if (!articleData) {
+            console.log(`  ⚠️  기사 데이터 없음`);
             scrapingLogger.warn(`기사 데이터 없음: ${url}`);
             continue;
           }
 
-          // OpenAI 요약 생성
-          const summary = await this.generateSummary(articleData.title, articleData.content);
+          // 제목과 본문 요약 생성
+          console.log(`  🤖 제목 요약 생성 중...`);
+          const titleSummary = await this.generateTitleSummary(articleData.title);
+          console.log(`  🤖 본문 요약 생성 중...`);
+          const contentSummary = await this.generateContentSummary(articleData.content);
+
+          // 3줄 요약 분리 및 세부 설명 생성
+          const summaryLines = contentSummary.split(/\n|\r|\r\n/).filter(line => line.trim().match(/^\d+\./));
+          const details: string[] = [];
+          for (let j = 0; j < summaryLines.length; j++) {
+            const line = summaryLines[j];
+            console.log(`    🔍 세부 설명 생성 중... (${j+1}/${summaryLines.length})`);
+            const detail = await requestDetailForSummaryLine(line, articleData.content);
+            details.push(detail);
+            console.log(`    📑 세부 설명: ${detail.replace(/\n/g, ' ')}`);
+          }
 
           const article: Article = {
             title: articleData.title,
             content: articleData.content,
-            summary,
+            summary: `${titleSummary}\n\n${contentSummary}`,
+            details, // 세부 설명 배열 추가
             url: articleData.originalUrl,
             source: 'AI타임즈',
-            publishedAt: new Date(),
+            publishedAt: articleData.publishedAt,
             imageUrl: articleData.imageUrls[0], // 첫 번째 이미지만 저장
             createdAt: new Date()
           };
 
           articles.push(article);
+          console.log(`  ✅ 처리 완료: ${article.title.substring(0, 40)}...`);
           scrapingLogger.info(`처리 완료: ${article.title.substring(0, 30)}...`);
 
           // 기사 간 지연 (일반 사용자처럼)
-          if (i < articleLinks.length - 1) {
+          if (i < limitedLinks.length - 1) {
             const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
+            console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
             scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
             await this.delay(delayTime);
           }
@@ -371,7 +530,8 @@ export class AiTimesScraper {
       result.articles = articles;
       result.success = articles.length > 0;
       
-      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${articleLinks.length}개 성공`);
+      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
+      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
 
     } catch (error) {
       const errorMsg = `전체 스크래핑 실패: ${(error as Error).message}`;

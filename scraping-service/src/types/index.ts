@@ -1,18 +1,13 @@
 // 기사 데이터 타입
 export interface Article {
   id?: string;
-  title: string;
-  content: string;
-  summary?: string;
-  author?: string;
-  publishedAt: Date;
+  titleSummary: string;
+  publishedAt?: Date;
   url: string;
-  source: string;
-  category?: string;
-  tags?: string[];
-  imageUrl?: string;
+  imageUrls: string[];
+  summaryLines: string[];
+  details: string[];
   createdAt?: Date;
-  updatedAt?: Date;
 }
 
 // 스크래핑 결과 타입
