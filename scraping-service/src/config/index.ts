@@ -12,6 +12,9 @@ export const ENV = {
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
   
+  // OpenAI 설정
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  
   // 스크래핑 설정
   MAX_CONCURRENT_JOBS: parseInt(process.env.MAX_CONCURRENT_JOBS || '3'),
   SCRAPING_TIMEOUT: parseInt(process.env.SCRAPING_TIMEOUT || '30000'),

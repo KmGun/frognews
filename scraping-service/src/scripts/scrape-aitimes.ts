@@ -23,28 +23,28 @@ async function main() {
       // 결과 출력
       result.articles.forEach((article, index) => {
         console.log(`\n📰 === 기사 ${index + 1} ===`);
-        console.log(`📝 제목: ${article.title}`);
+        console.log(`📝 요약 제목: ${article.titleSummary}`);
         console.log(`🔗 URL: ${article.url}`);
         if (article.publishedAt) {
           console.log(`⏰ 작성일: ${article.publishedAt.toISOString().replace('T', ' ').substring(0, 16)}`);
         }
-        // 제목 요약과 본문 요약을 분리해서 표시
-        const summaryParts = (article.summary || '').split('\n\n');
-        if (summaryParts.length >= 2) {
-          console.log(`🎯 제목 요약: ${summaryParts[0]}`);
-          console.log(`📋 본문 요약:`);
-          console.log(`   ${summaryParts[1]}`);
-        } else {
-          console.log(`📋 요약: ${article.summary || '요약 없음'}`);
-        }
-        // 3줄 요약 각 줄의 세부 설명
-        if (article.details && article.details.length > 0) {
-          article.details.forEach((detail, i) => {
-            console.log(`    ➡️  3줄 요약 ${i+1} 세부: ${detail.replace(/\n/g, ' ')}`);
+        // 본문 요약(3줄)
+        if (article.summaryLines && article.summaryLines.length > 0) {
+          article.summaryLines.forEach((line, i) => {
+            console.log(`📋 본문 요약 ${i + 1}: ${line}`);
+            if (article.details && article.details[i]) {
+              console.log(`    ➡️  상세: ${article.details[i].replace(/\n/g, ' ')}`);
+            }
           });
         }
-        console.log(`🖼️  이미지: ${article.imageUrl || '없음'}`);
-        console.log(`📊 본문 길이: ${article.content.length}자`);
+        // 이미지 배열
+        if (article.imageUrls && article.imageUrls.length > 0) {
+          article.imageUrls.forEach((img, i) => {
+            console.log(`🖼️  이미지${i + 1}: ${img}`);
+          });
+        } else {
+          console.log(`🖼️  이미지: 없음`);
+        }
       });
 
       // Supabase 저장

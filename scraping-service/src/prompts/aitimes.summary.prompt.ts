@@ -66,6 +66,8 @@ export function getCategoryTaggingPrompt(title: string, summary: string): string
 - 제목: "유럽연합, AI 법안 최종 통과" / 요약: "EU가 AI 규제 법안을 최종 통과시켰다." → 답: 4
 - 제목: "AI와 관련 없는 기타 소식" / 요약: "AI와 직접적 관련이 없는 기타 뉴스." → 답: 5
 
+포괄적으로 생각해서 분류하지말고, 좁고 깐깐하게 1~4를 분류해줘. 1~4에 확실히 해당되지 않으면 5번이야.
+
 [기사 제목]
 ${title}
 

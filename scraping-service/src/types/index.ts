@@ -7,6 +7,7 @@ export interface Article {
   imageUrls: string[];
   summaryLines: string[];
   details: string[];
+  category?: number; // 1: 오픈소스, 2: 서비스, 3: 연구, 4: 비즈니스/산업, 5: 기타
   createdAt?: Date;
 }
 

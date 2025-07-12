@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Article, NewsSource, ScrapingResult } from '../types';
 import { SCRAPING_CONFIG } from '../config';
 import { scrapingLogger } from '../utils/logger';
-import { getAiTimesSummaryPrompt, getTitleSummaryPrompt, getContentSummaryPrompt, getDetailForSummaryLinePrompt } from '../prompts/aitimes.summary.prompt';
+import { getAiTimesSummaryPrompt, getTitleSummaryPrompt, getContentSummaryPrompt, getDetailForSummaryLinePrompt, getCategoryTaggingPrompt } from '../prompts/aitimes.summary.prompt';
 import OpenAI from "openai";
 
 // OpenAI 클라이언트 생성 (API 키 필요)
@@ -51,12 +51,17 @@ interface ArticleData {
 
 // 3줄 요약 한 줄에 대한 세부 설명 요청 함수
 async function requestDetailForSummaryLine(summaryLine: string, content: string): Promise<string> {
-  const prompt = getDetailForSummaryLinePrompt(summaryLine, content);
-  const response = await client.responses.create({
-    model: "gpt-4.1",
-    input: prompt
-  });
-  return response.output_text;
+  try {
+    const prompt = getDetailForSummaryLinePrompt(summaryLine, content);
+    const response = await client.responses.create({
+      model: "gpt-4.1",
+      input: prompt
+    });
+    return response.output_text;
+  } catch (error) {
+    console.error(`❌ 세부 설명 생성 실패: ${(error as Error).message}`);
+    return `세부 설명 생성 실패: ${(error as Error).message}`;
+  }
 }
 
 export class AiTimesScraper {
@@ -314,26 +319,12 @@ export class AiTimesScraper {
 
       const prompt = getTitleSummaryPrompt(title);
 
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.3
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.openaiApiKey}`
-        },
-        timeout: 30000
+      const response = await client.responses.create({
+        model: 'gpt-4.1',
+        input: prompt
       });
 
-      const data: OpenAIResponse = response.data;
-      const summary = data.choices[0]?.message?.content?.trim() || '';
+      const summary = response.output_text;
       
       scrapingLogger.debug(`제목 요약 생성 완료: ${title.substring(0, 50)}...`);
       return summary;
@@ -356,26 +347,12 @@ export class AiTimesScraper {
 
       const prompt = getContentSummaryPrompt(content);
 
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 300,
-        temperature: 0.3
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.openaiApiKey}`
-        },
-        timeout: 30000
+      const response = await client.responses.create({
+        model: 'gpt-4.1',
+        input: prompt
       });
 
-      const data: OpenAIResponse = response.data;
-      const summary = data.choices[0]?.message?.content?.trim() || '';
+      const summary = response.output_text;
       
       scrapingLogger.debug(`본문 요약 생성 완료`);
       return summary;
@@ -383,6 +360,38 @@ export class AiTimesScraper {
     } catch (error) {
       scrapingLogger.error('OpenAI 본문 요약 생성 실패', error as Error);
       return '본문 요약 생성에 실패했습니다.';
+    }
+  }
+
+  // 카테고리 분류 생성
+  async generateCategoryTag(title: string, summary: string): Promise<number> {
+    try {
+      // 테스트 모드인 경우 랜덤 카테고리 반환
+      if (this.openaiApiKey === 'test-key') {
+        const testCategory = Math.floor(Math.random() * 5) + 1; // 1-5 랜덤
+        scrapingLogger.debug(`테스트 카테고리 분류 생성: ${testCategory}`);
+        return testCategory;
+      }
+
+      const prompt = getCategoryTaggingPrompt(title, summary);
+
+      const response = await client.responses.create({
+        model: 'gpt-4.1',
+        input: prompt
+      });
+
+      const categoryText = response.output_text.trim();
+      
+      // 숫자 추출 (1-5 범위)
+      const categoryMatch = categoryText.match(/[1-5]/);
+      const category = categoryMatch ? parseInt(categoryMatch[0]) : 5; // 기본값은 5 (기타)
+      
+      scrapingLogger.debug(`카테고리 분류 생성 완료: ${category}`);
+      return category;
+
+    } catch (error) {
+      scrapingLogger.error('OpenAI 카테고리 분류 생성 실패', error as Error);
+      return 5; // 실패 시 기본값 5 (기타)
     }
   }
 
@@ -398,26 +407,12 @@ export class AiTimesScraper {
 
       const prompt = getAiTimesSummaryPrompt(title, content);
 
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 500,
-        temperature: 0.3
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.openaiApiKey}`
-        },
-        timeout: 30000
+      const response = await client.responses.create({
+        model: 'gpt-4.1',
+        input: prompt
       });
 
-      const data: OpenAIResponse = response.data;
-      const summary = data.choices[0]?.message?.content?.trim() || '';
+      const summary = response.output_text;
       
       scrapingLogger.debug(`요약 생성 완료: ${title.substring(0, 50)}...`);
       return summary;
@@ -485,6 +480,10 @@ export class AiTimesScraper {
           console.log(`  🤖 본문 요약 생성 중...`);
           const contentSummary = await this.generateContentSummary(articleData.content);
 
+          // 카테고리 분류
+          console.log(`  🤖 카테고리 분류 생성 중...`);
+          const category = await this.generateCategoryTag(articleData.title, contentSummary);
+
           // 3줄 요약 분리 및 세부 설명 생성
           const summaryLines = contentSummary.split(/\n|\r|\r\n/).filter(line => line.trim().match(/^\d+\./));
           const details: string[] = [];
@@ -497,20 +496,19 @@ export class AiTimesScraper {
           }
 
           const article: Article = {
-            title: articleData.title,
-            content: articleData.content,
-            summary: `${titleSummary}\n\n${contentSummary}`,
-            details, // 세부 설명 배열 추가
-            url: articleData.originalUrl,
-            source: 'AI타임즈',
+            titleSummary: titleSummary,
             publishedAt: articleData.publishedAt,
-            imageUrl: articleData.imageUrls[0], // 첫 번째 이미지만 저장
+            url: articleData.originalUrl,
+            imageUrls: articleData.imageUrls,
+            summaryLines: summaryLines,
+            details: details,
+            category: category,
             createdAt: new Date()
           };
 
           articles.push(article);
-          console.log(`  ✅ 처리 완료: ${article.title.substring(0, 40)}...`);
-          scrapingLogger.info(`처리 완료: ${article.title.substring(0, 30)}...`);
+          console.log(`  ✅ 처리 완료: ${article.titleSummary.substring(0, 40)}...`);
+          scrapingLogger.info(`처리 완료: ${article.titleSummary.substring(0, 30)}...`);
 
           // 기사 간 지연 (일반 사용자처럼)
           if (i < limitedLinks.length - 1) {

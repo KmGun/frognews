@@ -6,16 +6,17 @@ export async function saveArticlesToSupabase(articles: Article[]) {
     title_summary: article.titleSummary,
     published_at: article.publishedAt ? article.publishedAt.toISOString() : null,
     url: article.url,
-    image_urls: article.imageUrls,
-    summary_lines: article.summaryLines,
-    details: article.details,
+    image_urls: JSON.stringify(article.imageUrls),
+    summary_lines: JSON.stringify(article.summaryLines),
+    details: JSON.stringify(article.details),
+    category: article.category,
     created_at: article.createdAt ? article.createdAt.toISOString() : new Date().toISOString(),
   }));
 
   // url 기준 upsert (중복시 덮어쓰기)
   const { data, error } = await supabase
     .from('articles')
-    .upsert(rows, { onConflict: ['url'] });
+    .upsert(rows, { onConflict: 'url' });
 
   if (error) {
     console.error('❌ Supabase 저장 실패:', error);
