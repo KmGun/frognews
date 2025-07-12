@@ -64,10 +64,10 @@ async function requestDetailForSummaryLine(summaryLine: string, content: string)
   }
 }
 
-export class AiTimesScraper {
+export class NewsTheAiScraper {
   private browser: Browser | null = null;
   private page: Page | null = null;
-  private baseUrl = 'https://www.aitimes.kr';
+  private baseUrl = 'https://www.newstheai.com';
   private listPageUrl: string;
   private openaiApiKey: string;
 
@@ -104,7 +104,7 @@ export class AiTimesScraper {
       // await this.page.setRequestInterception(true);
       // this.page.on('request', (req: any) => { ... });
 
-      scrapingLogger.info('AI타임즈 브라우저 초기화 완료');
+      scrapingLogger.info('NewsTheAI 브라우저 초기화 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 초기화 실패', error as Error);
       throw error;
@@ -122,13 +122,13 @@ export class AiTimesScraper {
         await this.browser.close();
         this.browser = null;
       }
-      scrapingLogger.info('AI타임즈 브라우저 종료 완료');
+      scrapingLogger.info('NewsTheAI 브라우저 종료 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 종료 실패', error as Error);
     }
   }
 
-  // 기사 링크 목록 수집 (수정된 버전)
+  // 기사 링크 목록 수집
   async getArticleLinks(): Promise<string[]> {
     if (!this.page) {
       throw new Error('브라우저가 초기화되지 않았습니다');
@@ -163,13 +163,12 @@ export class AiTimesScraper {
       
       const links: string[] = [];
       
-      // AI타임즈 기사 링크 선택자 (section-body 내의 기사 링크들)
-      // 실제 사이트 구조에 맞게 조정 필요
+      // NewsTheAI 기사 링크 선택자 (HTML 구조 확인 후 수정 필요)
       const selectors = [
-        '.section-body a[href*="/news/articleView.html"]',
+        'a[href*="/news/articleView.html"]',
         '.article-list a[href*="/news/articleView.html"]',
         '.news-list a[href*="/news/articleView.html"]',
-        'a[href*="/news/articleView.html"]'
+        '.section-body a[href*="/news/articleView.html"]'
       ];
 
       for (const selector of selectors) {
@@ -198,7 +197,6 @@ export class AiTimesScraper {
   }
 
   // 개별 기사 스크래핑
-  
   async scrapeArticleDetails(articleUrl: string): Promise<ArticleData | null> {
     if (!this.page) {
       throw new Error('브라우저가 초기화되지 않았습니다');
@@ -217,13 +215,13 @@ export class AiTimesScraper {
       const content = await this.page.content();
       const $ = cheerio.load(content);
       
-      // 제목 추출 (AI타임즈 실제 구조에 맞게 수정)
+      // 제목 추출 (NewsTheAI 실제 구조에 맞게 수정 필요)
       const titleSelectors = [
-        'h3.heading',  // AI타임즈 실제 제목 selector
-        '.article-view-header h3',
-        '.aht-title-view',
         'h1',
-        '.article-header h1'
+        '.article-header h1',
+        '.article-title',
+        '.news-title',
+        'h3.heading'
       ];
       
       let title = '';
@@ -232,13 +230,13 @@ export class AiTimesScraper {
         if (title) break;
       }
       
-      // 본문 추출 (AI타임즈 실제 구조에 맞게 수정)
+      // 본문 추출 (NewsTheAI 실제 구조에 맞게 수정 필요)
       const contentSelectors = [
-        '#article-view-content-div',  // AI타임즈 실제 본문 selector
-        '.article-veiw-body',
-        '.article-body',
         '.article-content',
-        '.news-content'
+        '.article-body',
+        '.news-content',
+        '#article-view-content-div',
+        '.article-view-body'
       ];
       
       let articleContent = '';
@@ -252,13 +250,13 @@ export class AiTimesScraper {
         }
       }
       
-      // 이미지 URL 수집 (AI타임즈 실제 구조에 맞게 수정)
+      // 이미지 URL 수집 (NewsTheAI 실제 구조에 맞게 수정 필요)
       const imageUrls: string[] = [];
       const imageSelectors = [
-        '.photo-layout img',  // AI타임즈 실제 이미지 selector
-        '.article-veiw-body img',
+        '.article-content img',
         '.article-body img',
-        '.article-content img'
+        '.news-content img',
+        '.photo-layout img'
       ];
       
       for (const selector of imageSelectors) {
@@ -273,18 +271,27 @@ export class AiTimesScraper {
         });
       }
 
-      // 작성일 추출
+      // 작성일 추출 (NewsTheAI 실제 구조에 맞게 수정 필요)
       let publishedAt: Date | undefined = undefined;
-      // clock 아이콘이 있는 li에서 텍스트 추출
-      const dateElem = $('li i.icon-clock-o').parent();
-      let dateText = dateElem.text().trim();
-      // 예시: '입력 2025.06.24 08:43'
-      if (dateText) {
-        const match = dateText.match(/(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})/);
-        if (match) {
-          const dateStr = match[1].replace(/\./g, '-'); // 2025-06-24 08:43
-          publishedAt = new Date(dateStr.replace(' ', 'T')+':00'); // ISO 포맷
-          if (isNaN(publishedAt.getTime())) publishedAt = undefined;
+      const dateSelectors = [
+        '.article-date',
+        '.news-date',
+        '.date-info',
+        'time'
+      ];
+      
+      for (const selector of dateSelectors) {
+        const dateElem = $(selector);
+        let dateText = dateElem.text().trim();
+        if (dateText) {
+          // 날짜 형식 파싱 (실제 형식에 맞게 수정 필요)
+          const match = dateText.match(/(\d{4}[-.\s]\d{2}[-.\s]\d{2}[\s]\d{2}:\d{2})/);
+          if (match) {
+            const dateStr = match[1].replace(/[.\s]/g, '-').replace(' ', 'T');
+            publishedAt = new Date(dateStr + ':00');
+            if (isNaN(publishedAt.getTime())) publishedAt = undefined;
+            break;
+          }
         }
       }
 
@@ -429,7 +436,7 @@ export class AiTimesScraper {
       success: false,
       articles: [],
       errors: [],
-      source: 'AI타임즈',
+      source: 'NewsTheAI',
       scrapedAt: new Date(),
       totalCount: 0
     };
@@ -549,9 +556,9 @@ export class AiTimesScraper {
 }
 
 // 사용 예시 함수
-export async function scrapeAiTimesNews(openaiApiKey: string): Promise<ScrapingResult> {
-  const listPageUrl = 'https://www.aitimes.kr/news/articleList.html?page=3&total=2380&box_idxno=&sc_section_code=S1N2&view_type=sm';
-  const scraper = new AiTimesScraper(listPageUrl, openaiApiKey);
+export async function scrapeNewsTheAiNews(openaiApiKey: string): Promise<ScrapingResult> {
+  const listPageUrl = 'https://www.newstheai.com/news/articleList.html?page=1&total=7042&sc_section_code=&sc_sub_section_code=&sc_serial_code=&sc_area=&sc_level=&sc_article_type=&sc_view_level=&sc_sdate=&sc_edate=&sc_serial_number=&sc_word=&box_idxno=&sc_multi_code=&sc_is_image=&sc_is_movie=&sc_user_name=&sc_order_by=E';
+  const scraper = new NewsTheAiScraper(listPageUrl, openaiApiKey);
   
   return await scraper.scrapeArticles();
-} 
+}

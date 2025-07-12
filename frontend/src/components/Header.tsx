@@ -12,38 +12,57 @@ const HeaderContent = styled.div`
   margin: 0 auto;
   padding: 0 20px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 15px;
 `;
 
-const Logo = styled.div`
-  font-size: 48px;
-  margin-bottom: 10px;
+const LogoContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const FrogEmoji = styled.div`
+  font-size: 40px;
+`;
+
+const BeerEmoji = styled.div`
+  font-size: 32px;
+`;
+
+const TextContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 `;
 
 const Title = styled.h1`
-  font-size: 32px;
+  font-size: 28px;
   font-weight: bold;
   color: #ffffff;
-  text-align: center;
   margin: 0;
+  line-height: 1.2;
 `;
 
 const Subtitle = styled.p`
-  font-size: 16px;
+  font-size: 14px;
   color: #888;
-  text-align: center;
   margin: 0;
+  line-height: 1.2;
 `;
 
 const Header: React.FC = () => {
   return (
     <HeaderContainer>
       <HeaderContent>
-        <Logo>🐸</Logo>
-        <Title>FrogNews</Title>
-        <Subtitle>인공지능 AI 뉴스</Subtitle>
+        <LogoContainer>
+          <FrogEmoji>🐸</FrogEmoji>
+          <BeerEmoji>🍺</BeerEmoji>
+        </LogoContainer>
+        <TextContainer>
+          <Title>FrogNews</Title>
+          <Subtitle>인공지능 핵심 요약 뉴스</Subtitle>
+        </TextContainer>
       </HeaderContent>
     </HeaderContainer>
   );

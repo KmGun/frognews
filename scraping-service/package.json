@@ -12,6 +12,7 @@
     "scrape:once": "ts-node src/scripts/scrape-once.ts",
     "scrape:aitimes": "ts-node src/scripts/scrape-aitimes.ts",
     "scrape:twitter": "ts-node src/scripts/scrape-twitter.ts",
+    "scrape:youtube": "ts-node src/scripts/scrape-youtube.ts",
     "migrate": "ts-node src/scripts/migrate.ts"
   },
   "dependencies": {
@@ -49,3 +50,4 @@
   "author": "Your Name",
   "license": "MIT"
 }
+

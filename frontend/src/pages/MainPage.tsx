@@ -22,15 +22,121 @@ const Content = styled.div`
   padding: 20px;
 `;
 
-const ArticleGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+const Timeline = styled.div`
   margin-top: 30px;
+  position: relative;
   
   @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    margin-top: 20px;
+  }
+`;
+
+const TimelineItem = styled.div`
+  margin-bottom: 35px;
+  position: relative;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 25px;
+  }
+`;
+
+const TimelineHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  position: relative;
+`;
+
+const TimelineLeft = styled.div`
+  display: flex;
+  align-items: flex-start;
+  margin-right: 15px;
+  position: relative;
+  
+  @media (max-width: 768px) {
+    margin-right: 10px;
+  }
+`;
+
+const TimelineDot = styled.div`
+  width: 8px;
+  height: 8px;
+  background-color: #1da1f2;
+  border-radius: 50%;
+  margin-right: 12px;
+  margin-top: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px #0a0a0a;
+  
+  &.article {
+    background-color: #ff6b6b;
+  }
+  
+  &.tweet {
+    background-color: #1da1f2;
+  }
+  
+  &.youtube {
+    background-color: #ff0000;
+  }
+`;
+
+const TimelineTimeInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 60px;
+  
+  @media (max-width: 768px) {
+    min-width: 50px;
+  }
+`;
+
+const TimelineTime = styled.div`
+  color: #888;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  
+  @media (max-width: 768px) {
+    font-size: 11px;
+  }
+`;
+
+const TimelineDate = styled.div`
+  color: #666;
+  font-size: 10px;
+  
+  @media (max-width: 768px) {
+    font-size: 9px;
+  }
+`;
+
+
+
+const TimelineLine = styled.div`
+  position: absolute;
+  left: 4px;
+  top: 18px;
+  bottom: -23px;
+  width: 1px;
+  background-color: #333;
+  
+  @media (max-width: 768px) {
+    bottom: -18px;
+  }
+  
+  &:last-child {
+    display: none;
+  }
+`;
+
+const TimelineContent = styled.div`
+  flex: 1;
+  margin-left: 20px;
+  
+  @media (max-width: 768px) {
+    margin-left: 15px;
   }
 `;
 
@@ -105,6 +211,33 @@ const MainPage: React.FC = () => {
     window.open(tweet.url, '_blank');
   };
 
+  // 시간 포맷팅 함수
+  const formatTime = (date: Date): { time: string; date: string } => {
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    let timeText = '';
+    if (days > 0) {
+      timeText = `${days}일 전`;
+    } else if (hours > 0) {
+      timeText = `${hours}시간 전`;
+    } else if (minutes > 0) {
+      timeText = `${minutes}분 전`;
+    } else {
+      timeText = '방금 전';
+    }
+    
+    const dateText = date.toLocaleDateString('ko-KR', {
+      month: 'short',
+      day: 'numeric'
+    });
+    
+    return { time: timeText, date: dateText };
+  };
+
 
 
   // 기사, 트위터, 유튜브를 시간순으로 정렬하여 통합
@@ -177,38 +310,48 @@ const MainPage: React.FC = () => {
           selectedCategory={selectedCategory}
           onCategorySelect={handleCategorySelect}
         />
-        <ArticleGrid>
+        <Timeline>
           {sortedContent.map((item, index) => {
-            if (item.type === 'article') {
-              const article = item.data as Article;
-              return (
-                <ArticleCard
-                  key={`article-${article.id}-${index}`}
-                  article={article}
-                  onClick={() => handleArticleClick(article)}
-                />
-              );
-            } else if (item.type === 'tweet') {
-              const tweet = item.data as Tweet;
-              return (
-                <TwitterCard
-                  key={`tweet-${tweet.id}-${index}`}
-                  tweet={tweet}
-                  onClick={() => handleTweetClick(tweet)}
-                />
-              );
-            } else if (item.type === 'youtube') {
-              const video = item.data as YouTubeVideo;
-              return (
-                <YouTubeCard
-                  key={`youtube-${video.id}-${index}`}
-                  video={video}
-                />
-              );
-            }
-            return null;
+            const { time, date } = formatTime(item.timestamp);
+            const isLast = index === sortedContent.length - 1;
+            
+
+            
+            return (
+              <TimelineItem key={`${item.type}-${(item.data as any).id}-${index}`}>
+                {!isLast && <TimelineLine />}
+                <TimelineHeader>
+                  <TimelineLeft>
+                    <TimelineDot className={item.type} />
+                    <TimelineTimeInfo>
+                      <TimelineTime>{time}</TimelineTime>
+                      <TimelineDate>{date}</TimelineDate>
+                    </TimelineTimeInfo>
+                  </TimelineLeft>
+                </TimelineHeader>
+                <TimelineContent>
+                  {item.type === 'article' && (
+                    <ArticleCard
+                      article={item.data as Article}
+                      onClick={() => handleArticleClick(item.data as Article)}
+                    />
+                  )}
+                  {item.type === 'tweet' && (
+                    <TwitterCard
+                      tweet={item.data as Tweet}
+                      onClick={() => handleTweetClick(item.data as Tweet)}
+                    />
+                  )}
+                  {item.type === 'youtube' && (
+                    <YouTubeCard
+                      video={item.data as YouTubeVideo}
+                    />
+                  )}
+                </TimelineContent>
+              </TimelineItem>
+            );
           })}
-        </ArticleGrid>
+        </Timeline>
       </Content>
     </MainContainer>
   );

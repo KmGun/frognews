@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Article, CATEGORIES } from '../types';
 
@@ -24,6 +24,21 @@ const ImageContainer = styled.div`
   overflow: hidden;
 `;
 
+const ImageCarousel = styled.div<{ currentIndex: number }>`
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease;
+  transform: ${(props) => `translateX(-${props.currentIndex * 100}%)`};
+  touch-action: pan-x;
+`;
+
+const ImageSlide = styled.div`
+  min-width: 100%;
+  height: 100%;
+  position: relative;
+`;
+
 const Image = styled.img`
   width: 100%;
   height: 100%;
@@ -44,6 +59,74 @@ const ImagePlaceholder = styled.div`
   justify-content: center;
   color: #666;
   font-size: 48px;
+`;
+
+const NavButton = styled.button`
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 2;
+  
+  ${Card}:hover & {
+    opacity: 1;
+  }
+  
+  &:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-50%) scale(1.1);
+  }
+  
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+`;
+
+const PrevButton = styled(NavButton)`
+  left: 8px;
+`;
+
+const NextButton = styled(NavButton)`
+  right: 8px;
+`;
+
+const DotsContainer = styled.div`
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+`;
+
+const Dot = styled.button<{ active: boolean }>`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: none;
+  background: ${(props) => 
+    props.active ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.4)'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.7);
+  }
 `;
 
 const TitleOverlay = styled.div`
@@ -74,21 +157,125 @@ interface ArticleCardProps {
 }
 
 const ArticleCard: React.FC<ArticleCardProps> = ({ article, onClick }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const images = article.imageUrls || [];
+  const hasMultipleImages = images.length > 1;
+
+  // 터치 이벤트 상태
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [touchEndX, setTouchEndX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+  };
+
+  const handleDotClick = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    setCurrentImageIndex(index);
+  };
+
+  // 터치 이벤트 핸들러
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!hasMultipleImages) return;
+    
+    e.stopPropagation();
+    setTouchStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!hasMultipleImages || !isDragging) return;
+    
+    e.stopPropagation();
+    setTouchEndX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!hasMultipleImages || !isDragging) return;
+    
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const swipeThreshold = 50; // 최소 스와이프 거리
+    const swipeDistance = touchStartX - touchEndX;
+    
+    if (Math.abs(swipeDistance) > swipeThreshold) {
+      if (swipeDistance > 0) {
+        // 왼쪽으로 스와이프 (다음 이미지)
+        setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+      } else {
+        // 오른쪽으로 스와이프 (이전 이미지)
+        setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+      }
+    }
+    
+    setTouchStartX(0);
+    setTouchEndX(0);
+  };
+
   return (
     <Card onClick={onClick}>
       <ImageContainer>
-        {article.imageUrls && article.imageUrls.length > 0 ? (
-          <Image
-            src={article.imageUrls[0]}
-            alt={article.titleSummary}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-            }}
-          />
+        {images.length > 0 ? (
+          <>
+            <ImageCarousel 
+              currentIndex={currentImageIndex}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {images.map((imageUrl, index) => (
+                <ImageSlide key={index}>
+                  <Image
+                    src={imageUrl}
+                    alt={`${article.titleSummary} - 이미지 ${index + 1}`}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                </ImageSlide>
+              ))}
+            </ImageCarousel>
+            
+            {hasMultipleImages && (
+              <>
+                <PrevButton 
+                  onClick={handlePrevImage}
+                  disabled={currentImageIndex === 0}
+                >
+                  ‹
+                </PrevButton>
+                <NextButton 
+                  onClick={handleNextImage}
+                  disabled={currentImageIndex === images.length - 1}
+                >
+                  ›
+                </NextButton>
+                
+                <DotsContainer>
+                  {images.map((_, index) => (
+                    <Dot
+                      key={index}
+                      active={index === currentImageIndex}
+                      onClick={(e) => handleDotClick(e, index)}
+                    />
+                  ))}
+                </DotsContainer>
+              </>
+            )}
+          </>
         ) : (
           <ImagePlaceholder>📰</ImagePlaceholder>
         )}
+        
         <TitleOverlay>
           <Title>{article.titleSummary}</Title>
         </TitleOverlay>
