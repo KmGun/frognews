@@ -112,8 +112,6 @@ const TimelineDate = styled.div`
   }
 `;
 
-
-
 const TimelineLine = styled.div`
   position: absolute;
   left: 4px;
@@ -140,6 +138,14 @@ const TimelineContent = styled.div`
   }
 `;
 
+const ContentGroup = styled.div`
+  margin-bottom: 25px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
 const ErrorMessage = styled.div`
   color: #ff6b6b;
   text-align: center;
@@ -152,6 +158,12 @@ type ContentItem = {
   type: 'article' | 'tweet' | 'youtube';
   data: Article | Tweet | YouTubeVideo;
   timestamp: Date;
+};
+
+// 날짜별 그룹 타입 정의
+type DateGroup = {
+  date: string;
+  items: ContentItem[];
 };
 
 const MainPage: React.FC = () => {
@@ -238,8 +250,6 @@ const MainPage: React.FC = () => {
     return { time: timeText, date: dateText };
   };
 
-
-
   // 기사, 트위터, 유튜브를 시간순으로 정렬하여 통합
   const getSortedContent = (): ContentItem[] => {
     const contentItems: ContentItem[] = [];
@@ -277,6 +287,66 @@ const MainPage: React.FC = () => {
     return contentItems.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   };
 
+  // 날짜별로 그룹화
+  const getGroupedContent = (): DateGroup[] => {
+    const sortedContent = getSortedContent();
+    const groups: { [key: string]: ContentItem[] } = {};
+    
+    sortedContent.forEach(item => {
+      const now = new Date();
+      const diff = now.getTime() - item.timestamp.getTime();
+      const minutes = Math.floor(diff / (1000 * 60));
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      
+      let dateKey: string;
+      if (days === 0) {
+        // 오늘은 시간대별로 세분화
+        if (minutes < 1) {
+          dateKey = '방금 전';
+        } else if (minutes < 60) {
+          dateKey = `${minutes}분 전`;
+        } else {
+          dateKey = `${hours}시간 전`;
+        }
+      } else if (days === 1) {
+        dateKey = '어제';
+      } else {
+        dateKey = `${days}일 전`;
+      }
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(item);
+    });
+    
+    // 날짜 순서대로 정렬
+    const sortedGroups: DateGroup[] = Object.entries(groups)
+      .map(([date, items]) => ({ date, items }))
+      .sort((a, b) => {
+        // 시간 순서대로 정렬 (최신순)
+        const getTimeValue = (dateStr: string): number => {
+          if (dateStr === '방금 전') return 0;
+          if (dateStr.includes('분 전')) {
+            return parseInt(dateStr.replace('분 전', ''));
+          }
+          if (dateStr.includes('시간 전')) {
+            return parseInt(dateStr.replace('시간 전', '')) * 60;
+          }
+          if (dateStr === '어제') return 24 * 60;
+          if (dateStr.includes('일 전')) {
+            return parseInt(dateStr.replace('일 전', '')) * 24 * 60;
+          }
+          return 0;
+        };
+        
+        return getTimeValue(a.date) - getTimeValue(b.date);
+      });
+    
+    return sortedGroups;
+  };
+
   if (loading) {
     return (
       <MainContainer>
@@ -299,7 +369,7 @@ const MainPage: React.FC = () => {
     );
   }
 
-  const sortedContent = getSortedContent();
+  const groupedContent = getGroupedContent();
 
   return (
     <MainContainer>
@@ -311,42 +381,43 @@ const MainPage: React.FC = () => {
           onCategorySelect={handleCategorySelect}
         />
         <Timeline>
-          {sortedContent.map((item, index) => {
-            const { time, date } = formatTime(item.timestamp);
-            const isLast = index === sortedContent.length - 1;
-            
-
+          {groupedContent.map((group, groupIndex) => {
+            const isLast = groupIndex === groupedContent.length - 1;
             
             return (
-              <TimelineItem key={`${item.type}-${(item.data as any).id}-${index}`}>
+              <TimelineItem key={group.date}>
                 {!isLast && <TimelineLine />}
                 <TimelineHeader>
                   <TimelineLeft>
-                    <TimelineDot className={item.type} />
+                    <TimelineDot />
                     <TimelineTimeInfo>
-                      <TimelineTime>{time}</TimelineTime>
-                      <TimelineDate>{date}</TimelineDate>
+                      <TimelineTime>{group.date}</TimelineTime>
+                      <TimelineDate>{group.items.length}개</TimelineDate>
                     </TimelineTimeInfo>
                   </TimelineLeft>
                 </TimelineHeader>
                 <TimelineContent>
-                  {item.type === 'article' && (
-                    <ArticleCard
-                      article={item.data as Article}
-                      onClick={() => handleArticleClick(item.data as Article)}
-                    />
-                  )}
-                  {item.type === 'tweet' && (
-                    <TwitterCard
-                      tweet={item.data as Tweet}
-                      onClick={() => handleTweetClick(item.data as Tweet)}
-                    />
-                  )}
-                  {item.type === 'youtube' && (
-                    <YouTubeCard
-                      video={item.data as YouTubeVideo}
-                    />
-                  )}
+                  {group.items.map((item, itemIndex) => (
+                    <ContentGroup key={`${item.type}-${(item.data as any).id}-${itemIndex}`}>
+                      {item.type === 'article' && (
+                        <ArticleCard
+                          article={item.data as Article}
+                          onClick={() => handleArticleClick(item.data as Article)}
+                        />
+                      )}
+                      {item.type === 'tweet' && (
+                        <TwitterCard
+                          tweet={item.data as Tweet}
+                          onClick={() => handleTweetClick(item.data as Tweet)}
+                        />
+                      )}
+                      {item.type === 'youtube' && (
+                        <YouTubeCard
+                          video={item.data as YouTubeVideo}
+                        />
+                      )}
+                    </ContentGroup>
+                  ))}
                 </TimelineContent>
               </TimelineItem>
             );
