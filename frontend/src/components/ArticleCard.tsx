@@ -30,7 +30,6 @@ const ImageCarousel = styled.div<{ currentIndex: number }>`
   height: 100%;
   transition: transform 0.3s ease;
   transform: ${(props) => `translateX(-${props.currentIndex * 100}%)`};
-  touch-action: pan-x;
 `;
 
 const ImageSlide = styled.div`
@@ -165,6 +164,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, onClick }) => {
   const [touchStartX, setTouchStartX] = useState(0);
   const [touchEndX, setTouchEndX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [hasSwiped, setHasSwiped] = useState(false);
 
   const handlePrevImage = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -181,32 +181,49 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, onClick }) => {
     setCurrentImageIndex(index);
   };
 
+  // 카드 클릭 핸들러
+  const handleCardClick = (e: React.MouseEvent) => {
+    // 스와이프 중이었다면 클릭 이벤트 무시
+    if (hasSwiped) {
+      e.preventDefault();
+      return;
+    }
+    
+    // 기본 동작 방지 (스크롤 방지)
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('ArticleCard 클릭됨!', article.titleSummary);
+    onClick();
+  };
+
   // 터치 이벤트 핸들러
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!hasMultipleImages) return;
     
-    e.stopPropagation();
     setTouchStartX(e.touches[0].clientX);
     setIsDragging(true);
+    setHasSwiped(false);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!hasMultipleImages || !isDragging) return;
     
-    e.stopPropagation();
     setTouchEndX(e.touches[0].clientX);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!hasMultipleImages || !isDragging) return;
     
-    e.stopPropagation();
     setIsDragging(false);
     
     const swipeThreshold = 50; // 최소 스와이프 거리
     const swipeDistance = touchStartX - touchEndX;
     
     if (Math.abs(swipeDistance) > swipeThreshold) {
+      setHasSwiped(true); // 스와이프 발생을 표시
+      e.preventDefault(); // 스와이프가 감지된 경우에만 기본 동작 방지
+      
       if (swipeDistance > 0) {
         // 왼쪽으로 스와이프 (다음 이미지)
         setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
@@ -214,6 +231,11 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, onClick }) => {
         // 오른쪽으로 스와이프 (이전 이미지)
         setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
       }
+      
+      // 스와이프 상태를 일정 시간 후 초기화
+      setTimeout(() => {
+        setHasSwiped(false);
+      }, 100);
     }
     
     setTouchStartX(0);
@@ -221,15 +243,12 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, onClick }) => {
   };
 
   return (
-    <Card onClick={onClick}>
+    <Card onClick={handleCardClick}>
       <ImageContainer>
         {images.length > 0 ? (
           <>
             <ImageCarousel 
               currentIndex={currentImageIndex}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
             >
               {images.map((imageUrl, index) => (
                 <ImageSlide key={index}>

@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { scrapingLogger } from '../utils/logger';
 import { translateTweetToKorean, canTranslate } from '../utils/translation';
 import { detectAIContent, canDetectAIContent, detectTweetCategory } from '../utils/ai-content-detector';
+import { filterNewTweetIds, extractTweetIdFromUrl, calculatePerformanceMetrics } from '../utils/duplicate-checker';
 import { SCRAPING_CONFIG } from '../config';
 
 export interface TwitterPostData {
@@ -556,32 +557,92 @@ export class TwitterScraper {
     }
   }
 
-  // 여러 계정의 타임라인 스크래핑
+  // 여러 계정의 타임라인 스크래핑 (중복 체크 포함)
   async scrapeMultipleAccounts(usernames: string[], maxTweetsPerUser: number = 10): Promise<TwitterPostData[]> {
     const allTweets: TwitterPostData[] = [];
+    let totalTweetUrls: string[] = [];
     
     try {
       await this.initBrowser();
       
+      console.log('🔍 모든 계정에서 트윗 URL 수집 중...');
+      
+      // 1단계: 모든 계정에서 트윗 URL만 먼저 수집
       for (let i = 0; i < usernames.length; i++) {
         const username = usernames[i];
-        scrapingLogger.info(`계정 ${i + 1}/${usernames.length}: @${username} 스크래핑 시작`);
+        scrapingLogger.info(`계정 ${i + 1}/${usernames.length}: @${username} URL 수집 중`);
         
         try {
-          const tweets = await this.scrapeUserTimeline(username, maxTweetsPerUser);
-          allTweets.push(...tweets);
+          const tweetUrls = await this.getUserTweetUrls(username, maxTweetsPerUser);
+          totalTweetUrls.push(...tweetUrls);
           
-          scrapingLogger.info(`@${username}: ${tweets.length}개의 AI 관련 트윗 수집`);
+          scrapingLogger.info(`@${username}: ${tweetUrls.length}개 트윗 URL 수집`);
         } catch (error) {
-          scrapingLogger.error(`@${username} 스크래핑 실패:`, error);
+          scrapingLogger.error(`@${username} URL 수집 실패:`, error);
         }
 
         // 계정 간 지연 (차단 방지)
         if (i < usernames.length - 1) {
-          const delayMs = SCRAPING_CONFIG.delayBetweenRequests * 3;
-          scrapingLogger.info(`다음 계정 스크래핑까지 ${delayMs}ms 대기...`);
+          const delayMs = SCRAPING_CONFIG.delayBetweenRequests * 2;
           await this.delay(delayMs);
         }
+      }
+
+      console.log(`📋 총 ${totalTweetUrls.length}개 트윗 URL 수집 완료`);
+      
+      // 2단계: 트윗 ID 추출 및 중복 체크
+      const allTweetIds = totalTweetUrls.map(url => extractTweetIdFromUrl(url)).filter(id => id !== null) as string[];
+      
+      if (allTweetIds.length === 0) {
+        console.log('❌ 유효한 트윗 ID를 찾을 수 없습니다');
+        return allTweets;
+      }
+
+      console.log('🔍 기존 데이터 중복 체크 중...');
+      const newTweetIds = await filterNewTweetIds(allTweetIds);
+      
+      if (newTweetIds.length === 0) {
+        console.log('✅ 새로운 트윗이 없습니다 (모든 트윗이 이미 수집됨)');
+        return allTweets;
+      }
+
+      // 3단계: 성능 메트릭 계산 및 표시
+      const metrics = calculatePerformanceMetrics(allTweetIds.length, newTweetIds.length);
+      console.log(`📊 효율성 리포트:`);
+      console.log(`   전체 트윗: ${metrics.totalItems}개`);
+      console.log(`   새로운 트윗: ${metrics.newItems}개`);
+      console.log(`   중복 제외: ${metrics.duplicateItems}개`);
+      console.log(`   ⚡ 효율성: ${metrics.efficiencyPercentage}% 작업량 절약`);
+      console.log(`   ⏱️ 시간 절약: ${metrics.timeSaved}`);
+      console.log(`   💰 비용 절약: ${metrics.costSaved}`);
+      scrapingLogger.info(`효율성 - 새로운 트윗 ${newTweetIds.length}/${allTweetIds.length}개, ${metrics.efficiencyPercentage}% 절약`);
+
+      // 4단계: 새로운 트윗들만 상세 스크래핑
+      const newTweetUrls = totalTweetUrls.filter(url => {
+        const tweetId = extractTweetIdFromUrl(url);
+        return tweetId && newTweetIds.includes(tweetId);
+      });
+
+      console.log(`📊 실제 처리할 트윗: ${newTweetUrls.length}개`);
+      
+      for (let i = 0; i < newTweetUrls.length; i++) {
+        const url = newTweetUrls[i];
+        scrapingLogger.info(`트윗 ${i + 1}/${newTweetUrls.length} 스크래핑 중...`);
+        
+        try {
+          const tweetData = await this.scrapeTweetDetails(url);
+          
+          if (tweetData) {
+            // scrapeTweetDetails에서 이미 AI 관련 게시물만 반환하므로 바로 추가
+            allTweets.push(tweetData);
+            scrapingLogger.info(`AI 관련 트윗 추가: ${tweetData.text.substring(0, 50)}...`);
+          }
+        } catch (error) {
+          scrapingLogger.error(`트윗 스크래핑 실패 (${url}):`, error);
+        }
+
+        // 요청 간 지연
+        await this.delay(SCRAPING_CONFIG.delayBetweenRequests);
       }
       
       scrapingLogger.info(`전체 스크래핑 완료: 총 ${allTweets.length}개의 AI 관련 트윗 수집`);
@@ -592,6 +653,66 @@ export class TwitterScraper {
       return allTweets;
     } finally {
       await this.closeBrowser();
+    }
+  }
+
+  // 사용자 타임라인에서 트윗 URL만 수집 (빠른 수집용)
+  async getUserTweetUrls(username: string, maxTweets: number = 10): Promise<string[]> {
+    if (!this.page) {
+      throw new Error('브라우저가 초기화되지 않았습니다');
+    }
+
+    try {
+      // 사용자 프로필 페이지로 이동
+      const profileUrl = `https://x.com/${username}`;
+      await this.page.goto(profileUrl, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // 페이지 로딩 대기
+      await this.delay(2000);
+
+      // 트윗 링크들 수집
+      const tweetUrls: string[] = [];
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (tweetUrls.length < maxTweets && retryCount < maxRetries) {
+        try {
+          // 트윗 링크 추출
+          const newUrls = await this.page.evaluate(() => {
+            const tweetElements = document.querySelectorAll('article[data-testid="tweet"] a[href*="/status/"]');
+            return Array.from(tweetElements)
+              .map(el => (el as HTMLAnchorElement).href)
+              .filter(url => url.includes('/status/'));
+          });
+
+          // 중복 제거하고 새로운 URL만 추가
+          for (const url of newUrls) {
+            if (!tweetUrls.includes(url) && tweetUrls.length < maxTweets) {
+              tweetUrls.push(url);
+            }
+          }
+
+          // 더 많은 트윗을 위해 스크롤
+          if (tweetUrls.length < maxTweets) {
+            await this.page.evaluate(() => {
+              window.scrollTo(0, document.body.scrollHeight);
+            });
+            await this.delay(1000);
+            retryCount++;
+          }
+        } catch (error) {
+          scrapingLogger.warn('트윗 URL 수집 중 오류:', error);
+          retryCount++;
+        }
+      }
+
+      return tweetUrls;
+    } catch (error) {
+      scrapingLogger.error(`@${username} 트윗 URL 수집 실패:`, error as Error);
+      return [];
     }
   }
 

@@ -5,6 +5,8 @@ import { Article, NewsSource, ScrapingResult } from '../types';
 import { SCRAPING_CONFIG } from '../config';
 import { scrapingLogger } from '../utils/logger';
 import { getAiTimesSummaryPrompt, getTitleSummaryPrompt, getContentSummaryPrompt, getDetailForSummaryLinePrompt, getCategoryTaggingPrompt } from '../prompts/aitimes.summary.prompt';
+import { filterNewUrls, calculatePerformanceMetrics } from '../utils/duplicate-checker';
+import { callOpenAIWithQueue, getQueueStatus } from '../utils/openai-rate-limiter';
 import OpenAI from "openai";
 
 // OpenAI 클라이언트 생성 (API 키 필요)
@@ -13,12 +15,14 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function requestTitleSummary(title: string): Promise<string> {
   const prompt = getTitleSummaryPrompt(title);
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1",
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 300,
-    temperature: 0.3
-  });
+  const response = await callOpenAIWithQueue(async () => {
+    return await client.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300,
+      temperature: 0.3
+    });
+  }, prompt, 300, 2);
 
   // 응답에서 요약 텍스트 추출
   return response.choices[0]?.message?.content?.trim() || '제목 요약 생성에 실패했습니다.';
@@ -27,12 +31,14 @@ export async function requestTitleSummary(title: string): Promise<string> {
 export async function requestContentSummary(content: string): Promise<string> {
   const prompt = getContentSummaryPrompt(content);
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1",
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800,
-    temperature: 0.3
-  });
+  const response = await callOpenAIWithQueue(async () => {
+    return await client.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+      temperature: 0.3
+    });
+  }, prompt, 800, 3);
 
   return response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
 }
@@ -480,32 +486,43 @@ export class NewsTheAiScraper {
       await this.initBrowser();
       
       // 1. 기사 링크 목록 수집
-      const articleLinks = await this.getArticleLinks();
-      result.totalCount = articleLinks.length;
+      const allArticleLinks = await this.getArticleLinks();
+      result.totalCount = allArticleLinks.length;
       
-      if (articleLinks.length === 0) {
+      if (allArticleLinks.length === 0) {
         result.errors.push('기사 링크를 찾을 수 없습니다');
         return result;
       }
 
-      console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
-      scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
+      console.log(`📊 총 ${allArticleLinks.length}개 기사 발견`);
+      scrapingLogger.info(`총 ${allArticleLinks.length}개 기사 발견`);
 
-      // 2. 각 기사를 순차적으로 처리 (전체 처리)
+      // 2. 중복 URL 필터링 (새로운 URL만 추출)
+      console.log('🔍 기존 데이터 중복 체크 중...');
+      const articleLinks = await filterNewUrls(allArticleLinks);
+      
+      if (articleLinks.length === 0) {
+        console.log('✅ 새로운 기사가 없습니다 (모든 기사가 이미 수집됨)');
+        scrapingLogger.info('새로운 기사 없음 - 모든 기사가 이미 존재');
+        return { ...result, success: true };
+      }
+
+      // 3. 성능 메트릭 계산 및 표시
+      const metrics = calculatePerformanceMetrics(allArticleLinks.length, articleLinks.length);
+      console.log(`📊 효율성: ${metrics.efficiencyPercentage}% 절약 (${metrics.newItems}/${metrics.totalItems}개 처리)`);
+
+      console.log(`📊 실제 처리할 기사: ${articleLinks.length}개`);
+      scrapingLogger.info(`실제 처리할 기사: ${articleLinks.length}개`);
+
+      // 4. 각 기사를 순차적으로 처리
       const articles: Article[] = [];
       
-      // 전체 기사 처리
-      const limitedLinks = articleLinks;
-      
-      console.log(`🚀 전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      scrapingLogger.info(`전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      
-      for (let i = 0; i < limitedLinks.length; i++) {
+      for (let i = 0; i < articleLinks.length; i++) {
         const url = articleLinks[i];
         
         try {
-          console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
-          scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
+          console.log(`\n🔄 [${i + 1}/${articleLinks.length}] 기사 처리 중...`);
+          scrapingLogger.info(`처리 중: ${i + 1}/${articleLinks.length} - ${url}`);
           
           // 각 기사 스크래핑
           console.log(`  📖 기사 스크래핑 중...`);
@@ -553,7 +570,7 @@ export class NewsTheAiScraper {
           scrapingLogger.info(`처리 완료: ${article.titleSummary.substring(0, 30)}...`);
 
           // 기사 간 지연 (일반 사용자처럼)
-          if (i < limitedLinks.length - 1) {
+          if (i < articleLinks.length - 1) {
             const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
             console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
             scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
@@ -570,8 +587,8 @@ export class NewsTheAiScraper {
       result.articles = articles;
       result.success = articles.length > 0;
       
-      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
-      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
+      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${articleLinks.length}개 성공`);
+      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${articleLinks.length}개 성공`);
 
     } catch (error) {
       const errorMsg = `전체 스크래핑 실패: ${(error as Error).message}`;

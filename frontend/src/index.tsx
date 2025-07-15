@@ -4,6 +4,11 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// 브라우저의 기본 스크롤 복원 비활성화
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );

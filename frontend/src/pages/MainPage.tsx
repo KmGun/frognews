@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Article, Tweet, YouTubeVideo, CATEGORIES } from '../types';
 import { articleApi, tweetApi, youtubeApi } from '../services/api';
+import { useReadArticles } from '../hooks/useReadArticles';
+import { useScrollPosition } from '../hooks/useScrollPosition';
 
 import Header from '../components/Header';
 import CategoryTags from '../components/CategoryTags';
@@ -14,17 +16,23 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const MainContainer = styled.div`
   min-height: 100vh;
   background-color: #0a0a0a;
+  width: 100%;
+  overflow: visible;
 `;
 
 const Content = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  width: 100%;
+  overflow: visible;
 `;
 
 const Timeline = styled.div`
   margin-top: 30px;
   position: relative;
+  width: 100%;
+  overflow: visible;
   
   @media (max-width: 768px) {
     margin-top: 20px;
@@ -153,6 +161,7 @@ const ErrorMessage = styled.div`
   font-size: 16px;
 `;
 
+
 // 컨텐츠 타입 정의
 type ContentItem = {
   type: 'article' | 'tweet' | 'youtube';
@@ -175,18 +184,44 @@ const MainPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  
+  const { readArticleIds, refreshReadArticles } = useReadArticles();
+  const { saveCurrentPosition, restoreScrollPosition } = useScrollPosition('main-page');
 
   useEffect(() => {
     fetchData();
   }, []);
 
   useEffect(() => {
-    if (selectedCategory === null) {
-      setFilteredArticles(articles);
-    } else {
-      setFilteredArticles(articles.filter(article => article.category === selectedCategory));
+    filterArticles();
+  }, [articles, selectedCategory, readArticleIds]);
+
+  // 데이터 로딩 완료 후 스크롤 복원 (간단한 버전)
+  useEffect(() => {
+    if (!loading && !error && articles.length > 0) {
+      // 데이터가 모두 로드된 후 스크롤 복원
+      console.log('📊 MainPage: 데이터 로딩 완료, 스크롤 복원 시도');
+      const timeoutId = setTimeout(() => {
+        restoreScrollPosition();
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [articles, selectedCategory]);
+  }, [loading, error, articles.length, restoreScrollPosition]);
+
+  const filterArticles = () => {
+    let filtered = articles;
+
+    // 카테고리 필터링
+    if (selectedCategory !== null) {
+      filtered = filtered.filter(article => article.category === selectedCategory);
+    }
+
+    // 읽은 기사 자동 숨기기
+    filtered = filtered.filter(article => !readArticleIds.includes(article.id || ''));
+
+    setFilteredArticles(filtered);
+  };
 
   const fetchData = async () => {
     try {
@@ -216,7 +251,21 @@ const MainPage: React.FC = () => {
   };
 
   const handleArticleClick = (article: Article) => {
+    console.log('MainPage handleArticleClick 호출됨:', article.titleSummary);
+    
+    // 현재 스크롤 위치 저장 (hook의 메서드 사용)
+    saveCurrentPosition();
+    
+    console.log('navigate 호출:', `/article/${article.id}`);
     navigate(`/article/${article.id}`, { state: { article } });
+    
+    // 기사 클릭 시 나중에 읽은 기사 목록을 다시 로드할 수 있도록 이벤트 리스너 추가
+    // (기사 페이지에서 돌아올 때 읽은 기사 목록이 업데이트됨)
+    const handleFocus = () => {
+      refreshReadArticles();
+      window.removeEventListener('focus', handleFocus);
+    };
+    window.addEventListener('focus', handleFocus);
   };
 
   const handleTweetClick = (tweet: Tweet) => {
@@ -283,18 +332,6 @@ const MainPage: React.FC = () => {
           timestamp: video.publishedAt
         });
       });
-    }
-    
-    // 카테고리 필터링 후 결과 콘솔 출력
-    if (selectedCategory !== null) {
-      const filteredArticleIds = filteredArticles.map(a => a.id);
-      const filteredTweetIds = tweets
-        .filter(tweet => tweet.category === selectedCategory)
-        .map(t => t.id);
-      
-      console.log(`카테고리 ${selectedCategory} 필터링 결과:`);
-      console.log('기사 IDs:', filteredArticleIds);
-      console.log('트윗 IDs:', filteredTweetIds);
     }
     
     // 시간순으로 정렬 (최신순)
@@ -406,7 +443,6 @@ const MainPage: React.FC = () => {
                     <TimelineDot />
                     <TimelineTimeInfo>
                       <TimelineTime>{group.date}</TimelineTime>
-                      <TimelineDate>{group.items.length}개</TimelineDate>
                     </TimelineTimeInfo>
                   </TimelineLeft>
                 </TimelineHeader>

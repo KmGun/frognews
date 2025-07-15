@@ -24,6 +24,28 @@ export interface ArticleRow {
   created_at: string;
 }
 
+// 사용자 테이블 타입
+export interface UserRow {
+  id: string;
+  session_id: string;
+  user_agent?: string;
+  first_visit_at: string;
+  last_visit_at: string;
+  total_articles_read: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 읽은 기사 테이블 타입
+export interface UserReadArticleRow {
+  id: string;
+  user_id: string;
+  article_id: string; // UUID 타입
+  read_at: string;
+  reading_duration: number;
+  created_at: string;
+}
+
 // 데이터베이스 테이블 타입
 export interface Database {
   public: {
@@ -32,6 +54,16 @@ export interface Database {
         Row: ArticleRow;
         Insert: Omit<ArticleRow, 'id' | 'created_at'>;
         Update: Partial<Omit<ArticleRow, 'id' | 'created_at'>>;
+      };
+      users: {
+        Row: UserRow;
+        Insert: Omit<UserRow, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<UserRow, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      user_read_articles: {
+        Row: UserReadArticleRow;
+        Insert: Omit<UserReadArticleRow, 'id' | 'created_at'>;
+        Update: Partial<Omit<UserReadArticleRow, 'id' | 'created_at'>>;
       };
     };
   };

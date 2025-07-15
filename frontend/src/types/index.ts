@@ -48,6 +48,28 @@ export interface YouTubeVideo {
   url: string;
 }
 
+// 사용자 타입
+export interface User {
+  id: string;
+  sessionId: string;
+  userAgent?: string;
+  firstVisitAt: Date;
+  lastVisitAt: Date;
+  totalArticlesRead: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 사용자가 읽은 기사 타입
+export interface UserReadArticle {
+  id: string;
+  userId: string;
+  articleId: string;
+  readAt: Date;
+  readingDuration: number; // 초 단위
+  createdAt: Date;
+}
+
 // 카테고리 매핑
 export const CATEGORIES = {
   1: { name: '오픈소스', color: '#10b981' },

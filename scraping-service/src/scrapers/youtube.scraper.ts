@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { scrapingLogger } from '../utils/logger';
 import { SCRAPING_CONFIG } from '../config';
 import { YouTubeVideoData } from '../utils/save-youtube-videos';
+import { filterNewVideoIds, extractVideoIdFromUrl, calculatePerformanceMetrics } from '../utils/duplicate-checker';
 
 export class YouTubeScraper {
   private browser: Browser | null = null;
@@ -312,9 +313,104 @@ export class YouTubeScraper {
     }
   }
 
-  // 전체 스크래핑 프로세스
+  // 여러 영상 스크래핑 (중복 체크 포함)
+  async scrapeMultipleVideos(videoUrls: string[]): Promise<YouTubeVideoData[]> {
+    const allVideos: YouTubeVideoData[] = [];
+    
+    if (videoUrls.length === 0) {
+      scrapingLogger.warn('스크래핑할 영상 URL이 없습니다');
+      return allVideos;
+    }
+
+    try {
+      await this.initBrowser();
+
+      console.log(`📋 총 ${videoUrls.length}개 영상 URL 받음`);
+      
+      // 1단계: 비디오 ID 추출 및 중복 체크
+      const allVideoIds = videoUrls.map(url => extractVideoIdFromUrl(url)).filter(id => id !== null) as string[];
+      
+      if (allVideoIds.length === 0) {
+        console.log('❌ 유효한 영상 ID를 찾을 수 없습니다');
+        return allVideos;
+      }
+
+      console.log('🔍 기존 데이터 중복 체크 중...');
+      const newVideoIds = await filterNewVideoIds(allVideoIds);
+      
+      if (newVideoIds.length === 0) {
+        console.log('✅ 새로운 영상이 없습니다 (모든 영상이 이미 수집됨)');
+        return allVideos;
+      }
+
+      // 2단계: 성능 메트릭 계산 및 표시
+      const metrics = calculatePerformanceMetrics(allVideoIds.length, newVideoIds.length);
+      console.log(`📊 효율성 리포트:`);
+      console.log(`   전체 영상: ${metrics.totalItems}개`);
+      console.log(`   새로운 영상: ${metrics.newItems}개`);
+      console.log(`   중복 제외: ${metrics.duplicateItems}개`);
+      console.log(`   ⚡ 효율성: ${metrics.efficiencyPercentage}% 작업량 절약`);
+      console.log(`   ⏱️ 시간 절약: ${metrics.timeSaved}`);
+      console.log(`   💰 비용 절약: ${metrics.costSaved}`);
+      scrapingLogger.info(`효율성 - 새로운 영상 ${newVideoIds.length}/${allVideoIds.length}개, ${metrics.efficiencyPercentage}% 절약`);
+
+      // 3단계: 새로운 영상들만 상세 스크래핑
+      const newVideoUrls = videoUrls.filter(url => {
+        const videoId = extractVideoIdFromUrl(url);
+        return videoId && newVideoIds.includes(videoId);
+      });
+
+      console.log(`📊 실제 처리할 영상: ${newVideoUrls.length}개`);
+      
+      for (let i = 0; i < newVideoUrls.length; i++) {
+        const url = newVideoUrls[i];
+        scrapingLogger.info(`영상 ${i + 1}/${newVideoUrls.length} 스크래핑 중...`);
+        
+        try {
+          const videoData = await this.scrapeVideoDetails(url);
+          
+          if (videoData) {
+            allVideos.push(videoData);
+            scrapingLogger.info(`영상 추가: ${videoData.title.substring(0, 50)}...`);
+          }
+        } catch (error) {
+          scrapingLogger.error(`영상 스크래핑 실패 (${url}):`, error);
+        }
+
+        // 요청 간 지연
+        await this.delay(SCRAPING_CONFIG.delayBetweenRequests);
+      }
+      
+      scrapingLogger.info(`전체 스크래핑 완료: 총 ${allVideos.length}개의 영상 수집`);
+      return allVideos;
+      
+    } catch (error) {
+      scrapingLogger.error('다중 영상 스크래핑 실패:', error as Error);
+      return allVideos;
+    } finally {
+      await this.closeBrowser();
+    }
+  }
+
+  // 전체 스크래핑 프로세스 (단일 영상)
   async scrapeVideo(videoUrl: string): Promise<YouTubeVideoData | null> {
     try {
+      // 단일 영상도 중복 체크를 통과
+      const videoId = extractVideoIdFromUrl(videoUrl);
+      if (!videoId) {
+        scrapingLogger.error('유효하지 않은 유튜브 URL입니다');
+        return null;
+      }
+
+      console.log('🔍 기존 데이터 중복 체크 중...');
+      const newVideoIds = await filterNewVideoIds([videoId]);
+      
+      if (newVideoIds.length === 0) {
+        console.log('✅ 이미 수집된 영상입니다');
+        scrapingLogger.info('중복 영상 - 이미 존재함');
+        return null;
+      }
+
       await this.initBrowser();
       const result = await this.scrapeVideoDetails(videoUrl);
       return result;

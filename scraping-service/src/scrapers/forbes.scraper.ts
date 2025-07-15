@@ -4,6 +4,7 @@ import { Article, ScrapingResult } from '../types';
 import { SCRAPING_CONFIG } from '../config';
 import { scrapingLogger } from '../utils/logger';
 import { saveArticlesToSupabase } from '../utils/save-articles';
+import { filterNewUrls, calculatePerformanceMetrics } from '../utils/duplicate-checker';
 import OpenAI from "openai";
 
 // OpenAI 클라이언트 생성 (API 키 필요)
@@ -545,16 +546,40 @@ export class ForbesScraper {
 
     try {
       // 1. 기사 링크 목록 수집
-      const articleLinks = await this.getArticleLinks();
-      result.totalCount = articleLinks.length;
+      const allArticleLinks = await this.getArticleLinks();
+      result.totalCount = allArticleLinks.length;
       
-      if (articleLinks.length === 0) {
+      if (allArticleLinks.length === 0) {
         result.errors.push('기사 링크를 찾을 수 없습니다');
         return result;
       }
 
-      console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
-      scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
+      console.log(`📊 총 ${allArticleLinks.length}개 기사 발견`);
+      scrapingLogger.info(`총 ${allArticleLinks.length}개 기사 발견`);
+
+      // 2. 중복 URL 필터링 (새로운 URL만 추출)
+      console.log('🔍 기존 데이터 중복 체크 중...');
+      const articleLinks = await filterNewUrls(allArticleLinks);
+      
+      if (articleLinks.length === 0) {
+        console.log('✅ 새로운 기사가 없습니다 (모든 기사가 이미 수집됨)');
+        scrapingLogger.info('새로운 기사 없음 - 모든 기사가 이미 존재');
+        return { ...result, success: true };
+      }
+
+      // 3. 성능 메트릭 계산 및 표시
+      const metrics = calculatePerformanceMetrics(allArticleLinks.length, articleLinks.length);
+      console.log(`📊 효율성 리포트:`);
+      console.log(`   전체 기사: ${metrics.totalItems}개`);
+      console.log(`   새로운 기사: ${metrics.newItems}개`);
+      console.log(`   중복 제외: ${metrics.duplicateItems}개`);
+      console.log(`   ⚡ 효율성: ${metrics.efficiencyPercentage}% 작업량 절약`);
+      console.log(`   ⏱️ 시간 절약: ${metrics.timeSaved}`);
+      console.log(`   💰 비용 절약: ${metrics.costSaved}`);
+      scrapingLogger.info(`효율성 - 새로운 기사 ${articleLinks.length}/${allArticleLinks.length}개, ${metrics.efficiencyPercentage}% 절약`);
+
+      console.log(`📊 실제 처리할 기사: ${articleLinks.length}개`);
+      scrapingLogger.info(`실제 처리할 기사: ${articleLinks.length}개`);
 
       // 2. 각 기사를 순차적으로 처리
       const articles: Article[] = [];

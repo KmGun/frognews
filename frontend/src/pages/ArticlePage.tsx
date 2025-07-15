@@ -7,16 +7,21 @@ import Header from '../components/Header';
 import ImageCarousel from '../components/ImageCarousel';
 import SummarySection from '../components/SummarySection';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useReadTracker } from '../hooks/useReadTracker';
 
 const ArticleContainer = styled.div`
   min-height: 100vh;
   background-color: #0a0a0a;
+  width: 100%;
+  overflow: visible;
 `;
 
 const Content = styled.div`
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
+  width: 100%;
+  overflow: visible;
 `;
 
 const BackButton = styled.button`
@@ -87,6 +92,12 @@ const ArticlePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 읽기 추적 훅
+  const { isTracking } = useReadTracker({
+    articleId: articleId || '',
+    enabled: !!articleId && !loading && !error
+  });
+
   useEffect(() => {
     // 먼저 state에서 article을 가져옵니다
     if (location.state?.article) {
@@ -123,7 +134,8 @@ const ArticlePage: React.FC = () => {
   };
 
   const handleBack = () => {
-    navigate(-1);
+    // 브라우저의 뒤로가기 사용 (스크롤 위치 복원을 위해)
+    window.history.back();
   };
 
   const formatDate = (date: Date | undefined) => {
