@@ -37,20 +37,12 @@ export async function requestContentSummary(content: string): Promise<string> {
   return response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
 }
 
-interface OpenAIResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
-
 interface ArticleData {
   title: string;
-  content: string;        // ← 전체 본문 텍스트
+  content: string;
   imageUrls: string[];
   originalUrl: string;
-  publishedAt?: Date; // 작성일 추가
+  publishedAt?: Date;
 }
 
 // 3줄 요약 한 줄에 대한 세부 설명 요청 함수
@@ -63,17 +55,17 @@ async function requestDetailForSummaryLine(summaryLine: string, content: string)
       max_tokens: 50,
       temperature: 0.3
     });
-    return response.choices[0]?.message?.content?.trim() || '세부 설명 생성에 실패했습니다.';
+    return response.choices[0]?.message?.content?.trim() || `세부 설명 생성 실패: ${summaryLine}`;
   } catch (error) {
     console.error(`❌ 세부 설명 생성 실패: ${(error as Error).message}`);
     return `세부 설명 생성 실패: ${(error as Error).message}`;
   }
 }
 
-export class NewsTheAiScraper {
+export class TechCrunchScraper {
   private browser: Browser | null = null;
   private page: Page | null = null;
-  private baseUrl = 'https://www.newstheai.com';
+  private baseUrl = 'https://techcrunch.com';
   private listPageUrl: string;
   private openaiApiKey: string;
 
@@ -86,10 +78,8 @@ export class NewsTheAiScraper {
   async initBrowser(): Promise<void> {
     try {
       this.browser = await puppeteer.launch({
-        headless: false,  // 디버깅을 위해 보이게
+        headless: false,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        // devtools: true,   // 개발자 도구 자동 열기
-        // slowMo: 250,      // 동작을 천천히
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -105,12 +95,8 @@ export class NewsTheAiScraper {
       
       // 뷰포트 설정
       await this.page.setViewport({ width: 1280, height: 720 });
-      
-      // 요청 차단 완전 제거 (일반 브라우저처럼 모든 리소스 로드)
-      // await this.page.setRequestInterception(true);
-      // this.page.on('request', (req: any) => { ... });
 
-      scrapingLogger.info('NewsTheAI 브라우저 초기화 완료');
+      scrapingLogger.info('TechCrunch 브라우저 초기화 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 초기화 실패', error as Error);
       throw error;
@@ -128,7 +114,7 @@ export class NewsTheAiScraper {
         await this.browser.close();
         this.browser = null;
       }
-      scrapingLogger.info('NewsTheAI 브라우저 종료 완료');
+      scrapingLogger.info('TechCrunch 브라우저 종료 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 종료 실패', error as Error);
     }
@@ -143,38 +129,26 @@ export class NewsTheAiScraper {
     try {
       scrapingLogger.info(`기사 목록 페이지 로드 중: ${this.listPageUrl}`);
       
-      // 더 안전한 페이지 로드
       await this.page.goto(this.listPageUrl, {
-        waitUntil: ['load', 'domcontentloaded'], // 여러 조건
-        timeout: 60000 // 타임아웃 늘리기
+        waitUntil: ['load', 'domcontentloaded'],
+        timeout: 60000
       });
 
-      // 페이지 상태 확인
       await this.page.waitForSelector('body', { timeout: 10000 });
-      
-      // 추가 대기
       await this.page.waitForTimeout(3000);
       
-      // 안전한 content 호출
-      let content;
-      try {
-        content = await this.page.content();
-      } catch (error) {
-        // 재시도
-        await this.page.waitForTimeout(2000);
-        content = await this.page.content();
-      }
-      
+      const content = await this.page.content();
       const $ = cheerio.load(content);
       
       const links: string[] = [];
       
-      // NewsTheAI 기사 링크 선택자 (실제 HTML 구조에 맞게 수정)
+      // TechCrunch 기사 링크 선택자들
       const selectors = [
-        '#section-list > ul > li .titles a[href*="/news/articleView.html"]',
-        '.views .titles a[href*="/news/articleView.html"]',
-        '.titles a[href*="/news/articleView.html"]',
-        'a[href*="/news/articleView.html"]'
+        '.wp-block-post-template li .loop-card__title-link',
+        '.wp-block-post-template li a[href*="/20"]',
+        'ul.wp-block-post-template li h3 a',
+        '.loop-card__title-link',
+        'a[href*="techcrunch.com/20"]'
       ];
 
       for (const selector of selectors) {
@@ -185,13 +159,14 @@ export class NewsTheAiScraper {
               ? href 
               : `${this.baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
             
-            if (!links.includes(fullUrl)) {
+            // TechCrunch 기사 URL 패턴 확인 (날짜 포함)
+            if (fullUrl.includes('techcrunch.com/20') && !links.includes(fullUrl)) {
               links.push(fullUrl);
             }
           }
         });
         
-        if (links.length > 0) break; // 링크를 찾으면 중단
+        if (links.length > 0) break;
       }
 
       scrapingLogger.info(`발견된 기사 링크 수: ${links.length}`);
@@ -221,13 +196,13 @@ export class NewsTheAiScraper {
       const content = await this.page.content();
       const $ = cheerio.load(content);
       
-      // 제목 추출 (NewsTheAI 실제 구조에 맞게 수정)
+      // 제목 추출
       const titleSelectors = [
-        'h1.heading',
+        'body > div.wp-site-blocks > div.seamless-scroll-container.wp-block-techcrunch-seamless-scroll-container > div.article-hero.article-hero--image-and-text.has-green-500-background-color.wp-block-techcrunch-article-hero > div.article-hero__second-section > div.article-hero__content > div.article-hero__middle > h1',
+        '.article-hero__middle h1',
+        'h1.article-hero__title',
         'h1',
-        '.article-header h1',
-        '.article-title',
-        '.news-title'
+        '.entry-title'
       ];
       
       let title = '';
@@ -236,35 +211,33 @@ export class NewsTheAiScraper {
         if (title) break;
       }
       
-      // 본문 추출 (NewsTheAI 실제 구조에 맞게 수정)
+      // 본문 추출
       const contentSelectors = [
-        '#article-view-content-div',
-        '.article-veiw-body',
+        '#wp--skip-link--target > div > div:nth-child(1)',
+        '.entry-content.wp-block-post-content',
         '.article-content',
-        '.article-body',
-        '.news-content'
+        '.post-content'
       ];
       
       let articleContent = '';
       for (const selector of contentSelectors) {
         const contentElem = $(selector).first();
         if (contentElem.length > 0) {
-          // 광고나 관련 기사 제거
-          contentElem.find('.ad-template, .ad-view, .related, .recommend, .social, .quick-tool, .writer, .article-copy, script, style').remove();
+          // 광고 및 불필요한 요소 제거
+          contentElem.find('.wp-block-techcrunch-inline-cta, .ad-unit, .social-share, .inline-cta, .wp-block-tc-ads-ad-slot').remove();
           articleContent = contentElem.text().trim();
           if (articleContent) break;
         }
       }
       
-      // 이미지 URL 수집 (NewsTheAI 실제 구조에 맞게 수정)
+      // 이미지 URL 수집
       const imageUrls: string[] = [];
       const imageSelectors = [
-        '#article-view-content-div img',
-        '.article-veiw-body img',
-        '.article-content img',
-        '.article-body img',
-        '.news-content img',
-        '.photo-layout img'
+        'body > div.wp-site-blocks > div.seamless-scroll-container.wp-block-techcrunch-seamless-scroll-container > div.article-hero.article-hero--image-and-text.has-green-500-background-color.wp-block-techcrunch-article-hero > div.article-hero__first-section > figure > img',
+        '.article-hero__first-section figure img',
+        '.loop-card__figure img',
+        '.entry-content img',
+        'img[src*="wp-content/uploads"]'
       ];
       
       for (const selector of imageSelectors) {
@@ -279,51 +252,33 @@ export class NewsTheAiScraper {
         });
       }
 
-      // 작성일 추출 (NewsTheAI 실제 구조에 맞게 수정)
+      // 작성일 추출
       let publishedAt: Date | undefined = undefined;
-      
-      // 먼저 메타 태그에서 시도
-      const metaDate = $('meta[property="article:published_time"]').attr('content');
-      if (metaDate) {
-        publishedAt = new Date(metaDate);
-        if (isNaN(publishedAt.getTime())) publishedAt = undefined;
-      }
-      
-      // 메타 태그가 없으면 본문에서 찾기
-      if (!publishedAt) {
-        const dateSelectors = [
-          'li:contains("입력")',
-          '.byline em',
-          '.byline',
-          '.article-date',
-          '.news-date',
-          'time'
-        ];
-        
-        for (const selector of dateSelectors) {
-          const dateElem = $(selector);
-          let dateText = dateElem.text().trim();
-          if (dateText && dateText.includes('입력')) {
-            // "입력 2025.07.13 07:00" 형태 파싱
-            const match = dateText.match(/입력\s+(\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2})/);
-            if (match) {
-              const dateStr = match[1];
-              // 2025.07.13 07:00 -> 2025-07-13T07:00:00 변환
-              const parts = dateStr.split(' ');
-              const datePart = parts[0].replace(/\./g, '-');
-              const timePart = parts[1];
-              const isoDate = `${datePart}T${timePart}:00`;
-              publishedAt = new Date(isoDate);
-              if (isNaN(publishedAt.getTime())) publishedAt = undefined;
-              break;
-            }
+      const dateSelectors = [
+        'body > div.wp-site-blocks > div.seamless-scroll-container.wp-block-techcrunch-seamless-scroll-container > div.article-hero.article-hero--image-and-text.has-green-500-background-color.wp-block-techcrunch-article-hero > div.article-hero__second-section > div.article-hero__content > div.article-hero__bottom > div.article-hero__date > div > time',
+        '.article-hero__date time',
+        '.wp-block-post-date time',
+        'time[datetime]'
+      ];
+
+      for (const selector of dateSelectors) {
+        const dateElem = $(selector).first();
+        if (dateElem.length > 0) {
+          const dateTimeAttr = dateElem.attr('datetime');
+          const dateText = dateElem.text().trim();
+          
+          if (dateTimeAttr) {
+            publishedAt = new Date(dateTimeAttr);
+            if (!isNaN(publishedAt.getTime())) break;
+          } else if (dateText) {
+            publishedAt = new Date(dateText);
+            if (!isNaN(publishedAt.getTime())) break;
           }
         }
       }
 
       if (!title || !articleContent) {
         scrapingLogger.warn(`필수 정보 누락: ${articleUrl}`);
-        scrapingLogger.warn(`제목: ${title ? '있음' : '없음'}, 본문: ${articleContent ? '있음' : '없음'}`);
         return null;
       }
 
@@ -344,7 +299,6 @@ export class NewsTheAiScraper {
   // 제목 요약 생성
   async generateTitleSummary(title: string): Promise<string> {
     try {
-      // 테스트 모드인 경우 가짜 요약 반환
       if (this.openaiApiKey === 'test-key') {
         const testSummary = `[테스트 모드] ${title}에 대한 제목 요약`;
         scrapingLogger.debug(`테스트 제목 요약 생성: ${title.substring(0, 50)}...`);
@@ -374,7 +328,6 @@ export class NewsTheAiScraper {
   // 본문 요약 생성
   async generateContentSummary(content: string): Promise<string> {
     try {
-      // 테스트 모드인 경우 가짜 요약 반환
       if (this.openaiApiKey === 'test-key') {
         const testSummary = `[테스트 모드] 본문 요약 (길이: ${content.length}자)`;
         scrapingLogger.debug(`테스트 본문 요약 생성`);
@@ -404,9 +357,8 @@ export class NewsTheAiScraper {
   // 카테고리 분류 생성
   async generateCategoryTag(title: string, summary: string): Promise<number> {
     try {
-      // 테스트 모드인 경우 랜덤 카테고리 반환
       if (this.openaiApiKey === 'test-key') {
-        const testCategory = Math.floor(Math.random() * 5) + 1; // 1-5 랜덤
+        const testCategory = Math.floor(Math.random() * 5) + 1;
         scrapingLogger.debug(`테스트 카테고리 분류 생성: ${testCategory}`);
         return testCategory;
       }
@@ -422,56 +374,25 @@ export class NewsTheAiScraper {
 
       const categoryText = response.choices[0]?.message?.content?.trim() || '5';
       
-      // 숫자 추출 (1-5 범위)
       const categoryMatch = categoryText.match(/[1-5]/);
-      const category = categoryMatch ? parseInt(categoryMatch[0]) : 5; // 기본값은 5 (기타)
+      const category = categoryMatch ? parseInt(categoryMatch[0]) : 5;
       
       scrapingLogger.debug(`카테고리 분류 생성 완료: ${category}`);
       return category;
 
     } catch (error) {
       scrapingLogger.error('OpenAI 카테고리 분류 생성 실패', error as Error);
-      return 5; // 실패 시 기본값 5 (기타)
+      return 5;
     }
   }
 
-  // 기존 요약 함수 (하위 호환성을 위해 유지)
-  async generateSummary(title: string, content: string): Promise<string> {
-    try {
-      // 테스트 모드인 경우 가짜 요약 반환
-      if (this.openaiApiKey === 'test-key') {
-        const testSummary = `[테스트 모드] ${title}에 대한 자동 생성된 요약입니다. 본문 길이: ${content.length}자`;
-        scrapingLogger.debug(`테스트 요약 생성: ${title.substring(0, 50)}...`);
-        return testSummary;
-      }
-
-      const prompt = getAiTimesSummaryPrompt(title, content);
-
-      const response = await client.chat.completions.create({
-        model: 'gpt-4.1',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        temperature: 0.3
-      });
-
-      const summary = response.choices[0]?.message?.content?.trim() || '요약 생성에 실패했습니다.';
-      
-      scrapingLogger.debug(`요약 생성 완료: ${title.substring(0, 50)}...`);
-      return summary;
-
-    } catch (error) {
-      scrapingLogger.error('OpenAI 요약 생성 실패', error as Error);
-      return '요약 생성에 실패했습니다.';
-    }
-  }
-
-  // 전체 스크래핑 프로세스 (순차 처리로 변경)
+  // 전체 스크래핑 프로세스
   async scrapeArticles(): Promise<ScrapingResult> {
     const result: ScrapingResult = {
       success: false,
       articles: [],
       errors: [],
-      source: 'NewsTheAI',
+      source: 'TechCrunch',
       scrapedAt: new Date(),
       totalCount: 0
     };
@@ -491,23 +412,17 @@ export class NewsTheAiScraper {
       console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
       scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
 
-      // 2. 각 기사를 순차적으로 처리 (전체 처리)
+      // 2. 각 기사를 순차적으로 처리 (시범으로 3개만)
       const articles: Article[] = [];
+      const maxArticles = Math.min(3, articleLinks.length);
       
-      // 전체 기사 처리
-      const limitedLinks = articleLinks;
-      
-      console.log(`🚀 전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      scrapingLogger.info(`전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      
-      for (let i = 0; i < limitedLinks.length; i++) {
+      for (let i = 0; i < maxArticles; i++) {
         const url = articleLinks[i];
         
         try {
-          console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
-          scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
+          console.log(`\n🔄 [${i + 1}/${maxArticles}] 기사 처리 중...`);
+          scrapingLogger.info(`처리 중: ${i + 1}/${maxArticles} - ${url}`);
           
-          // 각 기사 스크래핑
           console.log(`  📖 기사 스크래핑 중...`);
           const articleData = await this.scrapeArticleDetails(url);
           if (!articleData) {
@@ -516,13 +431,11 @@ export class NewsTheAiScraper {
             continue;
           }
 
-          // 제목과 본문 요약 생성
           console.log(`  🤖 제목 요약 생성 중...`);
           const titleSummary = await this.generateTitleSummary(articleData.title);
           console.log(`  🤖 본문 요약 생성 중...`);
           const contentSummary = await this.generateContentSummary(articleData.content);
 
-          // 카테고리 분류
           console.log(`  🤖 카테고리 분류 생성 중...`);
           const category = await this.generateCategoryTag(articleData.title, contentSummary);
 
@@ -552,9 +465,9 @@ export class NewsTheAiScraper {
           console.log(`  ✅ 처리 완료: ${article.titleSummary.substring(0, 40)}...`);
           scrapingLogger.info(`처리 완료: ${article.titleSummary.substring(0, 30)}...`);
 
-          // 기사 간 지연 (일반 사용자처럼)
-          if (i < limitedLinks.length - 1) {
-            const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
+          // 기사 간 지연
+          if (i < maxArticles - 1) {
+            const delayTime = Math.random() * 3000 + 2000;
             console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
             scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
             await this.delay(delayTime);
@@ -570,8 +483,8 @@ export class NewsTheAiScraper {
       result.articles = articles;
       result.success = articles.length > 0;
       
-      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
-      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
+      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${maxArticles}개 성공`);
+      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${maxArticles}개 성공`);
 
     } catch (error) {
       const errorMsg = `전체 스크래핑 실패: ${(error as Error).message}`;
@@ -591,9 +504,9 @@ export class NewsTheAiScraper {
 }
 
 // 사용 예시 함수
-export async function scrapeNewsTheAiNews(openaiApiKey: string): Promise<ScrapingResult> {
-  const listPageUrl = 'https://www.newstheai.com/news/articleList.html?page=2&total=7043&box_idxno=&sc_section_code=&sc_sub_section_code=&sc_serial_code=&sc_area=&sc_level=&sc_article_type=&sc_view_level=&sc_sdate=&sc_edate=&sc_serial_number=&sc_word=&sc_multi_code=&sc_is_image=&sc_is_movie=&sc_user_name=&sc_order_by=E';
-  const scraper = new NewsTheAiScraper(listPageUrl, openaiApiKey);
+export async function scrapeTechCrunchNews(openaiApiKey: string): Promise<ScrapingResult> {
+  const listPageUrl = 'https://techcrunch.com/category/artificial-intelligence/';
+  const scraper = new TechCrunchScraper(listPageUrl, openaiApiKey);
   
   return await scraper.scrapeArticles();
-}
+} 

@@ -11,8 +11,15 @@
     "lint": "eslint src/**/*.ts",
     "scrape:once": "ts-node src/scripts/scrape-once.ts",
     "scrape:aitimes": "ts-node src/scripts/scrape-aitimes.ts",
+    "scrape:newstheai": "ts-node src/scripts/scrape-newstheai.ts",
+    "scrape:forbes": "ts-node src/scripts/scrape-forbes.ts",
+    "scrape:theverge": "ts-node src/scripts/scrape-theverge.ts",
+    "scrape:arstechnica": "ts-node src/scripts/scrape-arstechnica.ts",
     "scrape:twitter": "ts-node src/scripts/scrape-twitter.ts",
     "scrape:youtube": "ts-node src/scripts/scrape-youtube.ts",
+    "scrape:bbc": "ts-node src/scripts/scrape-bbc.ts",
+    "scrape:techcrunch": "ts-node src/scripts/scrape-techcrunch.ts",
+    "scrape:venturebeat": "ts-node src/scripts/scrape-venturebeat.ts",
     "migrate": "ts-node src/scripts/migrate.ts"
   },
   "dependencies": {

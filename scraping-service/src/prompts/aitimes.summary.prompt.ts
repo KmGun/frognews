@@ -1,5 +1,5 @@
 export function getAiTimesSummaryPrompt(title: string, content: string): string {
-  return `다음 AI 관련 뉴스 기사를 한국어로 간결하게 요약해주세요. 핵심 내용과 중요한 포인트만 포함해주세요.
+  return `다음 AI 관련 뉴스 기사를 한국어로 간결하게 요약해주세요. 핵심 내용과 중요한 포인트만 포함해주세요. 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
 
 제목: ${title}
 
@@ -16,8 +16,11 @@ export function getAiTimesSummaryPrompt(title: string, content: string): string 
 export function getTitleSummaryPrompt(title: string): string {
   return `{${title}} <- 들어갈 문장
 
-위 문장을 아주 짧게, 핵심 위주로.
-네가 출력해줄 포맷은 딱 문장만이야.`;
+위 문장을 아주 짧게, 핵심 위주로 요약해줘.
+원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
+"제목:", "상세설명:", 따옴표(""), 번호(1,2,3) 등의 포맷팅은 절대 포함하지 말고 오직 요약된 텍스트만 출력해라.
+기존 틀에서 벗어난 문장 제목 (예 : 고유명사) 의 경우에도 무조건 제목에 해당하는 문장을 출력해라.
+`;
 }
 
 /**
@@ -30,7 +33,12 @@ export function getContentSummaryPrompt(content: string): string {
 위 글을 딱 3줄로만 요약해줘.
 테크 업계에서 일어나는 일을 좋아하는 기술 매니아를 위한 요약이야.
 문장이 너무 길지 않고 잘 읽히게, 핵심을 담아서 써줘야해.
-네가 출력해줄 포맷은 1,2,3을 붙여서 3개로 요약해주면됨`;
+원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
+
+다음 형식으로 정확히 출력해주세요:
+1. 첫 번째 요약 문장
+2. 두 번째 요약 문장  
+3. 세 번째 요약 문장`;
 }
 
 /**
@@ -40,7 +48,19 @@ export function getContentSummaryPrompt(content: string): string {
  * @returns 세부 설명 프롬프트
  */
 export function getDetailForSummaryLinePrompt(summaryLine: string, content: string): string {
-  return `아래는 뉴스 기사 본문과, 그 본문을 요약한 한 문장입니다.\n\n[기사 본문]\n${content}\n\n[요약 문장]\n${summaryLine}\n\n위 요약 문장에 대해, 본문 내용을 바탕으로 4줄 이내로 구체적이고 요약적으로 세부 설명을 작성해줘.\n너의 답변은 바로 설명만 출력하면 돼.`;
+  return `아래는 뉴스 기사 본문과, 그 본문을 요약한 한 문장입니다.
+
+[기사 본문]
+${content}
+
+[요약 문장]
+${summaryLine}
+
+위 요약 문장에 대해, 본문 내용을 바탕으로 요약적으로 세부설명을 붙여라.
+세부설명은 본문 내용에 무조건적으로 기반해야한다.
+내용은 최대 120자로만 해야한다.
+또 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력할것.
+"제목:", "상세설명:", 따옴표(""), 번호(1,2,3) 등의 포맷팅은 절대 포함하지 말고 오직 설명 텍스트만 출력해라.`;
 }
 
 /**
@@ -50,7 +70,7 @@ export function getDetailForSummaryLinePrompt(summaryLine: string, content: stri
  * @returns 카테고리 태깅 프롬프트
  */
 export function getCategoryTaggingPrompt(title: string, summary: string): string {
-  return `아래는 AI 뉴스 기사 제목과 요약입니다. 이 기사가 어떤 카테고리에 속하는지 1~5 중 하나의 숫자만 골라서 답변해줘. 반드시 숫자만 출력해야 해.
+  return `아래는 AI 뉴스 기사 제목과 요약입니다. 이 기사가 어떤 카테고리에 속하는지 1~5 중 하나의 숫자만 골라서 답변해줘. 반드시 숫자만 출력해야 해. 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
 
 [카테고리 정의]
 1. 오픈소스 : 개발자들이 실제로 사용할 수 있는, 경량 모델 공개, 오픈소스 모델공개 등에 대한 것들.

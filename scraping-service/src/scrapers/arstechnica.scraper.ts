@@ -1,79 +1,54 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
-import axios from 'axios';
-import { Article, NewsSource, ScrapingResult } from '../types';
+import { Article, ScrapingResult } from '../types';
 import { SCRAPING_CONFIG } from '../config';
 import { scrapingLogger } from '../utils/logger';
-import { getAiTimesSummaryPrompt, getTitleSummaryPrompt, getContentSummaryPrompt, getDetailForSummaryLinePrompt, getCategoryTaggingPrompt } from '../prompts/aitimes.summary.prompt';
+import { getTitleSummaryPrompt, getContentSummaryPrompt, getCategoryTaggingPrompt, getDetailForSummaryLinePrompt } from '../prompts/aitimes.summary.prompt';
 import OpenAI from "openai";
 
-// OpenAI 클라이언트 생성 (API 키 필요)
+// OpenAI 클라이언트 생성
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-export async function requestTitleSummary(title: string): Promise<string> {
-  const prompt = getTitleSummaryPrompt(title);
-
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1",
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 300,
-    temperature: 0.3
-  });
-
-  // 응답에서 요약 텍스트 추출
-  return response.choices[0]?.message?.content?.trim() || '제목 요약 생성에 실패했습니다.';
-}
-
-export async function requestContentSummary(content: string): Promise<string> {
-  const prompt = getContentSummaryPrompt(content);
-
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1",
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800,
-    temperature: 0.3
-  });
-
-  return response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
-}
-
-interface OpenAIResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
 
 interface ArticleData {
   title: string;
-  content: string;        // ← 전체 본문 텍스트
+  content: string;
+  shortSummary?: string;
   imageUrls: string[];
   originalUrl: string;
-  publishedAt?: Date; // 작성일 추가
+  publishedAt?: Date;
 }
 
 // 3줄 요약 한 줄에 대한 세부 설명 요청 함수
 async function requestDetailForSummaryLine(summaryLine: string, content: string): Promise<string> {
   try {
     const prompt = getDetailForSummaryLinePrompt(summaryLine, content);
+    
+    console.log(`      🤖 세부 설명 API 호출 중...`);
     const response = await client.chat.completions.create({
-      model: "gpt-4.1",
+      model: 'gpt-4.1',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 50,
+      max_tokens: 100, // 토큰 수 증가
       temperature: 0.3
     });
-    return response.choices[0]?.message?.content?.trim() || '세부 설명 생성에 실패했습니다.';
+    
+    const detail = response.choices[0]?.message?.content?.trim();
+    if (!detail) {
+      console.log(`      ⚠️  API 응답이 비어있음`);
+      return `세부 설명 생성 실패: ${summaryLine}`;
+    }
+    
+    console.log(`      ✅ 세부 설명 생성 성공`);
+    return detail;
   } catch (error) {
-    console.error(`❌ 세부 설명 생성 실패: ${(error as Error).message}`);
+    console.error(`      ❌ 세부 설명 생성 실패: ${(error as Error).message}`);
     return `세부 설명 생성 실패: ${(error as Error).message}`;
   }
 }
 
-export class NewsTheAiScraper {
+export class ArsTechnicaScraper {
   private browser: Browser | null = null;
   private page: Page | null = null;
-  private baseUrl = 'https://www.newstheai.com';
+  private baseUrl = 'https://arstechnica.com';
   private listPageUrl: string;
   private openaiApiKey: string;
 
@@ -86,10 +61,8 @@ export class NewsTheAiScraper {
   async initBrowser(): Promise<void> {
     try {
       this.browser = await puppeteer.launch({
-        headless: false,  // 디버깅을 위해 보이게
+        headless: false,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        // devtools: true,   // 개발자 도구 자동 열기
-        // slowMo: 250,      // 동작을 천천히
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -105,12 +78,8 @@ export class NewsTheAiScraper {
       
       // 뷰포트 설정
       await this.page.setViewport({ width: 1280, height: 720 });
-      
-      // 요청 차단 완전 제거 (일반 브라우저처럼 모든 리소스 로드)
-      // await this.page.setRequestInterception(true);
-      // this.page.on('request', (req: any) => { ... });
 
-      scrapingLogger.info('NewsTheAI 브라우저 초기화 완료');
+      scrapingLogger.info('Ars Technica 브라우저 초기화 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 초기화 실패', error as Error);
       throw error;
@@ -128,7 +97,7 @@ export class NewsTheAiScraper {
         await this.browser.close();
         this.browser = null;
       }
-      scrapingLogger.info('NewsTheAI 브라우저 종료 완료');
+      scrapingLogger.info('Ars Technica 브라우저 종료 완료');
     } catch (error) {
       scrapingLogger.error('브라우저 종료 실패', error as Error);
     }
@@ -143,10 +112,9 @@ export class NewsTheAiScraper {
     try {
       scrapingLogger.info(`기사 목록 페이지 로드 중: ${this.listPageUrl}`);
       
-      // 더 안전한 페이지 로드
       await this.page.goto(this.listPageUrl, {
-        waitUntil: ['load', 'domcontentloaded'], // 여러 조건
-        timeout: 60000 // 타임아웃 늘리기
+        waitUntil: ['load', 'domcontentloaded'],
+        timeout: 60000
       });
 
       // 페이지 상태 확인
@@ -155,44 +123,29 @@ export class NewsTheAiScraper {
       // 추가 대기
       await this.page.waitForTimeout(3000);
       
-      // 안전한 content 호출
-      let content;
-      try {
-        content = await this.page.content();
-      } catch (error) {
-        // 재시도
-        await this.page.waitForTimeout(2000);
-        content = await this.page.content();
-      }
-      
+      const content = await this.page.content();
       const $ = cheerio.load(content);
       
       const links: string[] = [];
       
-      // NewsTheAI 기사 링크 선택자 (실제 HTML 구조에 맞게 수정)
-      const selectors = [
-        '#section-list > ul > li .titles a[href*="/news/articleView.html"]',
-        '.views .titles a[href*="/news/articleView.html"]',
-        '.titles a[href*="/news/articleView.html"]',
-        'a[href*="/news/articleView.html"]'
-      ];
-
-      for (const selector of selectors) {
-        $(selector).each((_: any, element: any) => {
-          const href = $(element).attr('href');
-          if (href) {
-            const fullUrl = href.startsWith('http') 
-              ? href 
-              : `${this.baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-            
-            if (!links.includes(fullUrl)) {
-              links.push(fullUrl);
-            }
-          }
-        });
+      // card-숫자 패턴으로 기사 카드 찾기
+      $('article[id^="card-"]').each((_, element) => {
+        const cardElement = $(element);
         
-        if (links.length > 0) break; // 링크를 찾으면 중단
-      }
+        // 기사 제목 링크 찾기
+        const titleLink = cardElement.find('h2 a').first();
+        const href = titleLink.attr('href');
+        
+        if (href) {
+          const fullUrl = href.startsWith('http') 
+            ? href 
+            : `${this.baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+          
+          if (!links.includes(fullUrl)) {
+            links.push(fullUrl);
+          }
+        }
+      });
 
       scrapingLogger.info(`발견된 기사 링크 수: ${links.length}`);
       return links;
@@ -221,13 +174,11 @@ export class NewsTheAiScraper {
       const content = await this.page.content();
       const $ = cheerio.load(content);
       
-      // 제목 추출 (NewsTheAI 실제 구조에 맞게 수정)
+      // 제목 추출
       const titleSelectors = [
-        'h1.heading',
         'h1',
-        '.article-header h1',
-        '.article-title',
-        '.news-title'
+        'header h1',
+        '.article-header h1'
       ];
       
       let title = '';
@@ -236,39 +187,77 @@ export class NewsTheAiScraper {
         if (title) break;
       }
       
-      // 본문 추출 (NewsTheAI 실제 구조에 맞게 수정)
-      const contentSelectors = [
-        '#article-view-content-div',
-        '.article-veiw-body',
-        '.article-content',
-        '.article-body',
-        '.news-content'
-      ];
+      // 짧은 요약문 추출 (새로 추가)
+      let shortSummary = '';
+      const shortSummaryElement = $('#main > article > header > div > div > div:nth-child(1) > p');
+      if (shortSummaryElement.length > 0) {
+        shortSummary = shortSummaryElement.text().trim();
+      }
       
+      // 본문 추출 - #main > article 내부에서 ad-wrapper 제외하고 모든 텍스트 추출
       let articleContent = '';
-      for (const selector of contentSelectors) {
-        const contentElem = $(selector).first();
-        if (contentElem.length > 0) {
-          // 광고나 관련 기사 제거
-          contentElem.find('.ad-template, .ad-view, .related, .recommend, .social, .quick-tool, .writer, .article-copy, script, style').remove();
-          articleContent = contentElem.text().trim();
-          if (articleContent) break;
+      const mainArticle = $('#main > article');
+      if (mainArticle.length > 0) {
+        // article 복사본 생성
+        const articleClone = mainArticle.clone();
+        
+        // 광고 및 불필요한 요소 제거
+        articleClone.find('.ad-wrapper, .ad, .related, .recommend, .social, .teads-adCall, .ars-interlude-container, header, .comments, .sidebar, nav, footer').remove();
+        
+        // 본문 텍스트 추출
+        const textParts: string[] = [];
+        
+        // 모든 p, div, span 태그에서 텍스트 추출
+        articleClone.find('p, div').each((_, elem) => {
+          const text = $(elem).text().trim();
+          if (text && text.length > 20) { // 너무 짧은 텍스트는 제외
+            textParts.push(text);
+          }
+        });
+        
+        // 중복 제거 및 정리
+        const uniqueTexts = [...new Set(textParts)];
+        articleContent = uniqueTexts.join('\n\n');
+        
+        // 만약 위 방법으로 추출이 안 되면 기존 방식 사용
+        if (!articleContent || articleContent.length < 100) {
+          const contentSelectors = [
+            '.post-content',
+            '.post-content-double',
+            '.article-content',
+            '.entry-content'
+          ];
+          
+          for (const selector of contentSelectors) {
+            const contentElements = $(selector);
+            if (contentElements.length > 0) {
+              const textParts: string[] = [];
+              contentElements.each((_, elem) => {
+                const contentElem = $(elem);
+                contentElem.find('.ad-wrapper, .ad, .related, .recommend, .social, .teads-adCall, .ars-interlude-container').remove();
+                const text = contentElem.text().trim();
+                if (text) {
+                  textParts.push(text);
+                }
+              });
+              articleContent = textParts.join('\n\n');
+              if (articleContent) break;
+            }
+          }
         }
       }
       
-      // 이미지 URL 수집 (NewsTheAI 실제 구조에 맞게 수정)
+      // 이미지 URL 수집
       const imageUrls: string[] = [];
       const imageSelectors = [
-        '#article-view-content-div img',
-        '.article-veiw-body img',
-        '.article-content img',
-        '.article-body img',
-        '.news-content img',
-        '.photo-layout img'
+        '.intro-image',
+        '.post-content img',
+        'article img',
+        '.wp-post-image'
       ];
       
       for (const selector of imageSelectors) {
-        $(selector).each((_: any, element: any) => {
+        $(selector).each((_, element) => {
           const src = $(element).attr('src');
           if (src) {
             const fullUrl = src.startsWith('http') ? src : `${this.baseUrl}${src}`;
@@ -279,57 +268,26 @@ export class NewsTheAiScraper {
         });
       }
 
-      // 작성일 추출 (NewsTheAI 실제 구조에 맞게 수정)
+      // 작성일 추출
       let publishedAt: Date | undefined = undefined;
-      
-      // 먼저 메타 태그에서 시도
-      const metaDate = $('meta[property="article:published_time"]').attr('content');
-      if (metaDate) {
-        publishedAt = new Date(metaDate);
-        if (isNaN(publishedAt.getTime())) publishedAt = undefined;
-      }
-      
-      // 메타 태그가 없으면 본문에서 찾기
-      if (!publishedAt) {
-        const dateSelectors = [
-          'li:contains("입력")',
-          '.byline em',
-          '.byline',
-          '.article-date',
-          '.news-date',
-          'time'
-        ];
-        
-        for (const selector of dateSelectors) {
-          const dateElem = $(selector);
-          let dateText = dateElem.text().trim();
-          if (dateText && dateText.includes('입력')) {
-            // "입력 2025.07.13 07:00" 형태 파싱
-            const match = dateText.match(/입력\s+(\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2})/);
-            if (match) {
-              const dateStr = match[1];
-              // 2025.07.13 07:00 -> 2025-07-13T07:00:00 변환
-              const parts = dateStr.split(' ');
-              const datePart = parts[0].replace(/\./g, '-');
-              const timePart = parts[1];
-              const isoDate = `${datePart}T${timePart}:00`;
-              publishedAt = new Date(isoDate);
-              if (isNaN(publishedAt.getTime())) publishedAt = undefined;
-              break;
-            }
-          }
+      const timeElement = $('time[datetime]');
+      if (timeElement.length > 0) {
+        const datetime = timeElement.attr('datetime');
+        if (datetime) {
+          publishedAt = new Date(datetime);
+          if (isNaN(publishedAt.getTime())) publishedAt = undefined;
         }
       }
 
       if (!title || !articleContent) {
         scrapingLogger.warn(`필수 정보 누락: ${articleUrl}`);
-        scrapingLogger.warn(`제목: ${title ? '있음' : '없음'}, 본문: ${articleContent ? '있음' : '없음'}`);
         return null;
       }
 
       return {
         title: title.trim(),
         content: articleContent.trim(),
+        shortSummary: shortSummary.trim(),
         imageUrls,
         originalUrl: articleUrl,
         publishedAt
@@ -381,7 +339,16 @@ export class NewsTheAiScraper {
         return testSummary;
       }
 
-      const prompt = getContentSummaryPrompt(content);
+      // 본문 길이 제한 (토큰 제한 회피)
+      const maxContentLength = 10000; // 약 10,000자로 제한
+      const truncatedContent = content.length > maxContentLength 
+        ? content.substring(0, maxContentLength) + '...'
+        : content;
+
+      console.log(`    📏 본문 길이: ${content.length}자 -> ${truncatedContent.length}자로 제한`);
+      scrapingLogger.debug(`본문 길이 제한: ${content.length}자 -> ${truncatedContent.length}자`);
+
+      const prompt = getContentSummaryPrompt(truncatedContent);
 
       const response = await client.chat.completions.create({
         model: 'gpt-4.1',
@@ -392,10 +359,12 @@ export class NewsTheAiScraper {
 
       const summary = response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
       
-      scrapingLogger.debug(`본문 요약 생성 완료`);
+      console.log(`    📝 생성된 요약: ${summary.substring(0, 200)}...`);
+      scrapingLogger.debug(`본문 요약 생성 완료: ${summary.substring(0, 100)}...`);
       return summary;
 
     } catch (error) {
+      console.error(`    ❌ 본문 요약 생성 실패: ${(error as Error).message}`);
       scrapingLogger.error('OpenAI 본문 요약 생성 실패', error as Error);
       return '본문 요약 생성에 실패했습니다.';
     }
@@ -435,43 +404,13 @@ export class NewsTheAiScraper {
     }
   }
 
-  // 기존 요약 함수 (하위 호환성을 위해 유지)
-  async generateSummary(title: string, content: string): Promise<string> {
-    try {
-      // 테스트 모드인 경우 가짜 요약 반환
-      if (this.openaiApiKey === 'test-key') {
-        const testSummary = `[테스트 모드] ${title}에 대한 자동 생성된 요약입니다. 본문 길이: ${content.length}자`;
-        scrapingLogger.debug(`테스트 요약 생성: ${title.substring(0, 50)}...`);
-        return testSummary;
-      }
-
-      const prompt = getAiTimesSummaryPrompt(title, content);
-
-      const response = await client.chat.completions.create({
-        model: 'gpt-4.1',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        temperature: 0.3
-      });
-
-      const summary = response.choices[0]?.message?.content?.trim() || '요약 생성에 실패했습니다.';
-      
-      scrapingLogger.debug(`요약 생성 완료: ${title.substring(0, 50)}...`);
-      return summary;
-
-    } catch (error) {
-      scrapingLogger.error('OpenAI 요약 생성 실패', error as Error);
-      return '요약 생성에 실패했습니다.';
-    }
-  }
-
-  // 전체 스크래핑 프로세스 (순차 처리로 변경)
+  // 전체 스크래핑 프로세스
   async scrapeArticles(): Promise<ScrapingResult> {
     const result: ScrapingResult = {
       success: false,
       articles: [],
       errors: [],
-      source: 'NewsTheAI',
+      source: 'Ars Technica',
       scrapedAt: new Date(),
       totalCount: 0
     };
@@ -491,21 +430,19 @@ export class NewsTheAiScraper {
       console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
       scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
 
-      // 2. 각 기사를 순차적으로 처리 (전체 처리)
+      // 2. 각 기사를 순차적으로 처리 (테스트용으로 5개로 제한)
       const articles: Article[] = [];
+      const limitedLinks = articleLinks.slice(0, 5);
       
-      // 전체 기사 처리
-      const limitedLinks = articleLinks;
+      console.log(`🧪 테스트 모드: ${limitedLinks.length}개 기사만 처리`);
+      scrapingLogger.info(`테스트 모드: ${limitedLinks.length}개 기사만 처리`);
       
-      console.log(`🚀 전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      scrapingLogger.info(`전체 처리 모드: ${limitedLinks.length}개 기사 모두 처리`);
-      
-      for (let i = 0; i < limitedLinks.length; i++) {
-        const url = articleLinks[i];
-        
-        try {
-          console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
-          scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
+              for (let i = 0; i < limitedLinks.length; i++) {
+          const url = limitedLinks[i];
+          
+          try {
+            console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
+            scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
           
           // 각 기사 스크래핑
           console.log(`  📖 기사 스크래핑 중...`);
@@ -516,23 +453,44 @@ export class NewsTheAiScraper {
             continue;
           }
 
+          // 디버깅: 추출된 데이터 확인
+          console.log(`  📄 제목: ${articleData.title.substring(0, 50)}...`);
+          console.log(`  📝 짧은 요약: ${articleData.shortSummary?.substring(0, 100) || '없음'}...`);
+          console.log(`  📋 본문 길이: ${articleData.content.length}자`);
+          console.log(`  📸 이미지 수: ${articleData.imageUrls.length}개`);
+
           // 제목과 본문 요약 생성
           console.log(`  🤖 제목 요약 생성 중...`);
           const titleSummary = await this.generateTitleSummary(articleData.title);
           console.log(`  🤖 본문 요약 생성 중...`);
-          const contentSummary = await this.generateContentSummary(articleData.content);
+          
+          // 짧은 요약문이 있으면 우선 활용
+          const contentForSummary = articleData.shortSummary && articleData.shortSummary.length > 50 
+            ? `${articleData.shortSummary}\n\n${articleData.content}` 
+            : articleData.content;
+          
+          const contentSummary = await this.generateContentSummary(contentForSummary);
 
           // 카테고리 분류
           console.log(`  🤖 카테고리 분류 생성 중...`);
           const category = await this.generateCategoryTag(articleData.title, contentSummary);
 
           // 3줄 요약 분리 및 세부 설명 생성
-          const summaryLines = contentSummary.split(/\n|\r|\r\n/).filter(line => line.trim().match(/^\d+\./));
+          console.log(`    🔍 요약 파싱 중...`);
+          const summaryLines = contentSummary.split(/\n|\r|\r\n/)
+            .map(line => line.trim())
+            .filter(line => line && line.match(/^\d+\./));
+          
+          console.log(`    📋 파싱된 요약 줄 수: ${summaryLines.length}`);
+          summaryLines.forEach((line, index) => {
+            console.log(`    ${index + 1}. ${line}`);
+          });
+
           const details: string[] = [];
           for (let j = 0; j < summaryLines.length; j++) {
             const line = summaryLines[j];
             console.log(`    🔍 세부 설명 생성 중... (${j+1}/${summaryLines.length})`);
-            const detail = await requestDetailForSummaryLine(line, articleData.content);
+            const detail = await requestDetailForSummaryLine(line, articleData.content.substring(0, 5000)); // 세부 설명도 길이 제한
             details.push(detail);
             console.log(`    📑 세부 설명: ${detail.replace(/\n/g, ' ')}`);
           }
@@ -552,13 +510,13 @@ export class NewsTheAiScraper {
           console.log(`  ✅ 처리 완료: ${article.titleSummary.substring(0, 40)}...`);
           scrapingLogger.info(`처리 완료: ${article.titleSummary.substring(0, 30)}...`);
 
-          // 기사 간 지연 (일반 사용자처럼)
-          if (i < limitedLinks.length - 1) {
-            const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
-            console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
-            scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
-            await this.delay(delayTime);
-          }
+                      // 기사 간 지연 (일반 사용자처럼)
+            if (i < limitedLinks.length - 1) {
+              const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
+              console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
+              scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
+              await this.delay(delayTime);
+            }
 
         } catch (error) {
           const errorMsg = `기사 처리 실패: ${url} - ${(error as Error).message}`;
@@ -570,8 +528,8 @@ export class NewsTheAiScraper {
       result.articles = articles;
       result.success = articles.length > 0;
       
-      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
-      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
+      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공`);
+      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공`);
 
     } catch (error) {
       const errorMsg = `전체 스크래핑 실패: ${(error as Error).message}`;
@@ -591,9 +549,9 @@ export class NewsTheAiScraper {
 }
 
 // 사용 예시 함수
-export async function scrapeNewsTheAiNews(openaiApiKey: string): Promise<ScrapingResult> {
-  const listPageUrl = 'https://www.newstheai.com/news/articleList.html?page=2&total=7043&box_idxno=&sc_section_code=&sc_sub_section_code=&sc_serial_code=&sc_area=&sc_level=&sc_article_type=&sc_view_level=&sc_sdate=&sc_edate=&sc_serial_number=&sc_word=&sc_multi_code=&sc_is_image=&sc_is_movie=&sc_user_name=&sc_order_by=E';
-  const scraper = new NewsTheAiScraper(listPageUrl, openaiApiKey);
+export async function scrapeArsTechnicaNews(openaiApiKey: string): Promise<ScrapingResult> {
+  const listPageUrl = 'https://arstechnica.com/ai/';
+  const scraper = new ArsTechnicaScraper(listPageUrl, openaiApiKey);
   
   return await scraper.scrapeArticles();
 }

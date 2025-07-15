@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express';
-import { ChosunScraper } from '@/scrapers/chosun.scraper';
+
 import { ApiResponse, ScrapingResult } from '@/types';
 import { apiLogger, logApiRequest, logApiError } from '@/utils/logger';
+import { VentureBeatScraper } from '@/scrapers/venturebeat.scraper';
 
 const router = express.Router();
 
@@ -28,8 +29,17 @@ router.post('/scrape/:sourceId', async (req: Request, res: Response) => {
     
     // 소스별 스크래퍼 인스턴스 생성
     switch (sourceId) {
-      case 'chosun':
-        scraper = new ChosunScraper();
+      case 'venturebeat':
+        const openaiApiKey = process.env.OPENAI_API_KEY;
+        if (!openaiApiKey) {
+          const keyErrorResponse: ApiResponse = {
+            success: false,
+            error: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다',
+            timestamp: new Date()
+          };
+          return res.status(500).json(keyErrorResponse);
+        }
+        scraper = new VentureBeatScraper('https://venturebeat.com/category/ai/', openaiApiKey);
         break;
       default:
         const errorResponse: ApiResponse = {
@@ -75,10 +85,8 @@ router.post('/scrape-all', async (req: Request, res: Response) => {
   try {
     const results: ScrapingResult[] = [];
     
-    // 현재는 조선일보만 구현되어 있음
-    const scrapers = [
-      { id: 'chosun', scraper: new ChosunScraper() }
-    ];
+    // 현재는 구현된 스크래퍼가 없음
+    const scrapers: any[] = [];
 
     // 순차적으로 스크래핑 (병렬 처리는 서버 부하를 고려하여 제외)
     for (const { id, scraper } of scrapers) {

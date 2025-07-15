@@ -13,24 +13,28 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function requestTitleSummary(title: string): Promise<string> {
   const prompt = getTitleSummaryPrompt(title);
 
-  const response = await client.responses.create({
+  const response = await client.chat.completions.create({
     model: "gpt-4.1",
-    input: prompt
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 300,
+    temperature: 0.3
   });
 
   // 응답에서 요약 텍스트 추출
-  return response.output_text;
+  return response.choices[0]?.message?.content?.trim() || '제목 요약 생성에 실패했습니다.';
 }
 
 export async function requestContentSummary(content: string): Promise<string> {
   const prompt = getContentSummaryPrompt(content);
 
-  const response = await client.responses.create({
+  const response = await client.chat.completions.create({
     model: "gpt-4.1",
-    input: prompt
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 800,
+    temperature: 0.3
   });
 
-  return response.output_text;
+  return response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
 }
 
 interface OpenAIResponse {
@@ -53,11 +57,13 @@ interface ArticleData {
 async function requestDetailForSummaryLine(summaryLine: string, content: string): Promise<string> {
   try {
     const prompt = getDetailForSummaryLinePrompt(summaryLine, content);
-    const response = await client.responses.create({
+    const response = await client.chat.completions.create({
       model: "gpt-4.1",
-      input: prompt
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 50,
+      temperature: 0.3
     });
-    return response.output_text;
+    return response.choices[0]?.message?.content?.trim() || `세부 설명 생성 실패: ${summaryLine}`;
   } catch (error) {
     console.error(`❌ 세부 설명 생성 실패: ${(error as Error).message}`);
     return `세부 설명 생성 실패: ${(error as Error).message}`;
@@ -319,12 +325,14 @@ export class AiTimesScraper {
 
       const prompt = getTitleSummaryPrompt(title);
 
-      const response = await client.responses.create({
+      const response = await client.chat.completions.create({
         model: 'gpt-4.1',
-        input: prompt
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.3
       });
 
-      const summary = response.output_text;
+      const summary = response.choices[0]?.message?.content?.trim() || '제목 요약 생성에 실패했습니다.';
       
       scrapingLogger.debug(`제목 요약 생성 완료: ${title.substring(0, 50)}...`);
       return summary;
@@ -347,12 +355,14 @@ export class AiTimesScraper {
 
       const prompt = getContentSummaryPrompt(content);
 
-      const response = await client.responses.create({
+      const response = await client.chat.completions.create({
         model: 'gpt-4.1',
-        input: prompt
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.3
       });
 
-      const summary = response.output_text;
+      const summary = response.choices[0]?.message?.content?.trim() || '본문 요약 생성에 실패했습니다.';
       
       scrapingLogger.debug(`본문 요약 생성 완료`);
       return summary;
@@ -375,12 +385,14 @@ export class AiTimesScraper {
 
       const prompt = getCategoryTaggingPrompt(title, summary);
 
-      const response = await client.responses.create({
+      const response = await client.chat.completions.create({
         model: 'gpt-4.1',
-        input: prompt
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 50,
+        temperature: 0.1
       });
 
-      const categoryText = response.output_text.trim();
+      const categoryText = response.choices[0]?.message?.content?.trim() || '5';
       
       // 숫자 추출 (1-5 범위)
       const categoryMatch = categoryText.match(/[1-5]/);
@@ -407,12 +419,14 @@ export class AiTimesScraper {
 
       const prompt = getAiTimesSummaryPrompt(title, content);
 
-      const response = await client.responses.create({
+      const response = await client.chat.completions.create({
         model: 'gpt-4.1',
-        input: prompt
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.3
       });
 
-      const summary = response.output_text;
+      const summary = response.choices[0]?.message?.content?.trim() || '요약 생성에 실패했습니다.';
       
       scrapingLogger.debug(`요약 생성 완료: ${title.substring(0, 50)}...`);
       return summary;
@@ -449,21 +463,18 @@ export class AiTimesScraper {
       console.log(`📊 총 ${articleLinks.length}개 기사 발견`);
       scrapingLogger.info(`총 ${articleLinks.length}개 기사 처리 시작`);
 
-      // 2. 각 기사를 순차적으로 처리 (테스트용으로 5개만)
+      // 2. 각 기사를 순차적으로 처리
       const articles: Article[] = [];
       
-      const testLimit = 5; // 테스트용으로 5개만 처리
-      const limitedLinks = articleLinks.slice(0, testLimit);
+      console.log(`📊 전체 ${articleLinks.length}개 기사 처리 시작`);
+      scrapingLogger.info(`전체 ${articleLinks.length}개 기사 처리 시작`);
       
-      console.log(`🧪 테스트 모드: ${limitedLinks.length}개 기사만 처리`);
-      scrapingLogger.info(`테스트 모드: ${limitedLinks.length}개 기사만 처리`);
-      
-      for (let i = 0; i < limitedLinks.length; i++) {
+      for (let i = 0; i < articleLinks.length; i++) {
         const url = articleLinks[i];
         
         try {
-          console.log(`\n🔄 [${i + 1}/${limitedLinks.length}] 기사 처리 중...`);
-          scrapingLogger.info(`처리 중: ${i + 1}/${limitedLinks.length} - ${url}`);
+          console.log(`\n🔄 [${i + 1}/${articleLinks.length}] 기사 처리 중...`);
+          scrapingLogger.info(`처리 중: ${i + 1}/${articleLinks.length} - ${url}`);
           
           // 각 기사 스크래핑
           console.log(`  📖 기사 스크래핑 중...`);
@@ -511,7 +522,7 @@ export class AiTimesScraper {
           scrapingLogger.info(`처리 완료: ${article.titleSummary.substring(0, 30)}...`);
 
           // 기사 간 지연 (일반 사용자처럼)
-          if (i < limitedLinks.length - 1) {
+          if (i < articleLinks.length - 1) {
             const delayTime = Math.random() * 3000 + 2000; // 2-5초 랜덤 지연
             console.log(`  ⏳ 다음 기사까지 ${Math.round(delayTime/1000)}초 대기...`);
             scrapingLogger.debug(`다음 기사까지 ${Math.round(delayTime/1000)}초 대기`);
@@ -528,8 +539,8 @@ export class AiTimesScraper {
       result.articles = articles;
       result.success = articles.length > 0;
       
-      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
-      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${limitedLinks.length}개 성공 (전체 ${articleLinks.length}개 중)`);
+      console.log(`\n🎉 스크래핑 완료: ${articles.length}/${articleLinks.length}개 성공`);
+      scrapingLogger.info(`스크래핑 완료: ${articles.length}/${articleLinks.length}개 성공`);
 
     } catch (error) {
       const errorMsg = `전체 스크래핑 실패: ${(error as Error).message}`;
@@ -550,7 +561,7 @@ export class AiTimesScraper {
 
 // 사용 예시 함수
 export async function scrapeAiTimesNews(openaiApiKey: string): Promise<ScrapingResult> {
-  const listPageUrl = 'https://www.aitimes.kr/news/articleList.html?page=3&total=2380&box_idxno=&sc_section_code=S1N2&view_type=sm';
+  const listPageUrl = 'https://www.aitimes.kr/news/articleList.html?sc_section_code=S1N4&view_type=sm';
   const scraper = new AiTimesScraper(listPageUrl, openaiApiKey);
   
   return await scraper.scrapeArticles();

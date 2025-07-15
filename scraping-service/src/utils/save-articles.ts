@@ -4,13 +4,17 @@ import { Article } from '../types';
 export async function saveArticlesToSupabase(articles: Article[]) {
   const rows = articles.map(article => ({
     title_summary: article.titleSummary,
-    published_at: article.publishedAt ? article.publishedAt.toISOString() : null,
+    published_at: article.publishedAt && !isNaN(article.publishedAt.getTime()) 
+      ? article.publishedAt.toISOString() 
+      : null,
     url: article.url,
     image_urls: JSON.stringify(article.imageUrls),
     summary_lines: JSON.stringify(article.summaryLines),
     details: JSON.stringify(article.details),
     category: article.category,
-    created_at: article.createdAt ? article.createdAt.toISOString() : new Date().toISOString(),
+    created_at: article.createdAt && !isNaN(article.createdAt.getTime()) 
+      ? article.createdAt.toISOString() 
+      : new Date().toISOString(),
   }));
 
   // url 기준 upsert (중복시 덮어쓰기)

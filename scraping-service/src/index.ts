@@ -5,7 +5,7 @@ import * as cron from 'node-cron';
 import routes from '@/api/routes';
 import { ENV, CRON_SCHEDULES } from '@/config';
 import { logger, apiLogger } from '@/utils/logger';
-import { ChosunScraper } from '@/scrapers/chosun.scraper';
+
 
 // Express 앱 생성
 const app = express();
@@ -82,15 +82,8 @@ function setupCronJobs() {
     logger.info('정기 스크래핑 작업 시작');
     
     try {
-      const scraper = new ChosunScraper();
-      const result = await scraper.scrapeArticles();
-      
-      logger.info('정기 스크래핑 완료', {
-        source: result.source,
-        articlesCount: result.totalCount,
-        success: result.success,
-        errors: result.errors
-      });
+      // TODO: 구현된 스크래퍼로 교체
+      logger.info('정기 스크래핑 스킵 - 구현된 스크래퍼 없음');
       
       // TODO: 결과를 Supabase에 저장하는 로직 추가
       // await saveArticlesToDatabase(result.articles);
