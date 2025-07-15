@@ -15,7 +15,8 @@ export async function saveTweetToSupabase(tweet: TwitterPostData) {
     created_at: tweet.createdAt.toISOString(),
     url: tweet.url,
     scraped_at: new Date().toISOString(),
-    is_active: true
+    is_active: true,
+    category: tweet.category || 5
   };
 
   // id 기준 upsert (중복시 덮어쓰기)
@@ -47,7 +48,8 @@ export async function saveTweetsToSupabase(tweets: TwitterPostData[]) {
     created_at: tweet.createdAt.toISOString(),
     url: tweet.url,
     scraped_at: new Date().toISOString(),
-    is_active: true
+    is_active: true,
+    category: tweet.category || 5
   }));
 
   // id 기준 upsert (중복시 덮어쓰기)

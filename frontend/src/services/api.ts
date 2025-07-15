@@ -83,6 +83,7 @@ const convertRowToTweet = (row: any): Tweet => {
     },
     createdAt: new Date(row.created_at),
     url: row.url,
+    category: row.category ?? 5, // 기본값 5 (기타)
   };
 };
 

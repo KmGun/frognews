@@ -2,6 +2,7 @@ import puppeteer, { Browser, Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 import { scrapingLogger } from '../utils/logger';
 import { translateTweetToKorean, canTranslate } from '../utils/translation';
+import { detectAIContent, canDetectAIContent, detectTweetCategory } from '../utils/ai-content-detector';
 import { SCRAPING_CONFIG } from '../config';
 
 export interface TwitterPostData {
@@ -23,6 +24,7 @@ export interface TwitterPostData {
     retweets: number;
     replies: number;
   };
+  category?: number; // 1~5 카테고리 태깅
 }
 
 export class TwitterScraper {
@@ -63,6 +65,8 @@ export class TwitterScraper {
   async closeBrowser(): Promise<void> {
     try {
       if (this.page) {
+        // 리스너 정리
+        this.page.removeAllListeners('framenavigated');
         await this.page.close();
         this.page = null;
       }
@@ -148,6 +152,17 @@ export class TwitterScraper {
     try {
       scrapingLogger.info(`트위터 게시물 스크래핑 시작: ${tweetUrl}`);
       
+      // analytics 페이지 이동 방지를 위한 간단한 방법
+      this.page.on('framenavigated', async (frame) => {
+        if (frame === this.page!.mainFrame()) {
+          const currentUrl = frame.url();
+          if (currentUrl.includes('/analytics') || currentUrl.includes('analytics.twitter.com')) {
+            scrapingLogger.warn(`Analytics 페이지로 이동 감지, 원래 URL로 복귀: ${currentUrl}`);
+            await this.page!.goto(tweetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          }
+        }
+      });
+      
       // 트위터 페이지 로드
       await this.page.goto(tweetUrl, {
         waitUntil: 'networkidle2',
@@ -156,6 +171,14 @@ export class TwitterScraper {
 
       // 페이지 로딩 대기
       await this.delay(3000);
+
+      // 현재 URL 확인 - analytics 페이지로 이동했는지 체크
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('/analytics') || currentUrl.includes('analytics.twitter.com')) {
+        scrapingLogger.warn('Analytics 페이지로 이동됨, 원래 URL로 복귀');
+        await this.page.goto(tweetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await this.delay(2000);
+      }
 
       // 로그인 요구 시 처리 (간단한 우회)
       try {
@@ -175,8 +198,10 @@ export class TwitterScraper {
         return null;
       }
 
-      // 게시물 텍스트 추출
+      // 게시물 텍스트와 링크 추출
       let tweetText = '';
+      let links: { shortUrl: string; fullUrl: string }[] = [];
+      
       const textSelectors = [
         '[data-testid="tweetText"]',
         '[data-testid="tweet"] div[lang]',
@@ -188,10 +213,62 @@ export class TwitterScraper {
       for (const selector of textSelectors) {
         const textElement = $(selector).first();
         if (textElement.length > 0) {
+          // 링크 정보 추출
+          textElement.find('a[href]').each((i, linkEl) => {
+            const $link = $(linkEl);
+            const href = $link.attr('href');
+            const linkText = $link.text().trim();
+            
+            if (href && linkText) {
+              // t.co 링크나 단축 링크를 전체 URL로 변환
+              let fullUrl = href;
+              if (href.startsWith('/')) {
+                fullUrl = `https://x.com${href}`;
+              } else if (href.startsWith('http')) {
+                fullUrl = href;
+              }
+              
+              links.push({
+                shortUrl: linkText,
+                fullUrl: fullUrl
+              });
+            }
+          });
+          
+          // 텍스트 추출 (HTML 태그 제거하지만 링크는 유지)
           tweetText = textElement.text().trim();
           if (tweetText) break;
         }
       }
+
+      // 텍스트에서 단축된 링크를 전체 URL로 치환
+      if (links.length > 0) {
+        for (const link of links) {
+          // 단축된 링크 패턴을 전체 URL로 치환
+          if (link.shortUrl.includes('...') || link.shortUrl.includes('…')) {
+            // … 기호 제거한 링크로 치환
+            const cleanFullUrl = link.fullUrl.replace(/…$/, '').replace(/\.\.\.$/, '');
+            tweetText = tweetText.replace(link.shortUrl, cleanFullUrl);
+          }
+        }
+      }
+
+      // 추가적으로 t.co 링크들을 실제 페이지에서 추출
+      try {
+        const expandedLinks = await this.extractExpandedLinks($);
+        for (const expandedLink of expandedLinks) {
+          // 텍스트에서 t.co 링크를 실제 URL로 치환
+          const cleanFullUrl = expandedLink.fullUrl.replace(/…$/, '').replace(/\.\.\.$/, '');
+          tweetText = tweetText.replace(expandedLink.shortUrl, cleanFullUrl);
+        }
+      } catch (error) {
+        scrapingLogger.warn('확장된 링크 추출 실패:', error);
+      }
+
+      // 최종적으로 남은 … 기호들 정리
+      tweetText = tweetText.replace(/https?:\/\/[^\s]+…/g, (match) => {
+        return match.replace(/…$/, '');
+      });
 
       // 작성자 정보 추출
       let authorName = '';
@@ -276,7 +353,28 @@ export class TwitterScraper {
         url: tweetUrl
       };
 
-      // 번역 기능 (영어 게시물인 경우)
+      // AI 관련 게시물인지 먼저 판단
+      let isAIRelated = false;
+      if (canDetectAIContent()) {
+        const aiResult = await detectAIContent(tweetText);
+        isAIRelated = aiResult.isAIRelated;
+      }
+      if (!isAIRelated) {
+        scrapingLogger.info('AI 관련 게시물이 아니므로 저장하지 않습니다.');
+        return null;
+      }
+
+      // 카테고리 태깅
+      let category = 5;
+      try {
+        category = await detectTweetCategory(tweetText);
+        scrapingLogger.info(`카테고리 태깅 결과: ${category}`);
+      } catch (e) {
+        scrapingLogger.warn('카테고리 태깅 실패, 기본값 5로 저장');
+      }
+      tweetData.category = category;
+
+      // 여기까지 왔다면 AI 관련 게시물이므로 번역 진행
       if (canTranslate() && tweetText) {
         try {
           scrapingLogger.info('번역 시도 중...');
@@ -309,12 +407,191 @@ export class TwitterScraper {
         return null;
       }
 
-      scrapingLogger.info('트위터 게시물 스크래핑 완료');
+      scrapingLogger.info('AI 관련 트위터 게시물 스크래핑 완료');
       return tweetData;
 
     } catch (error) {
       scrapingLogger.error('트위터 게시물 스크래핑 실패:', error as Error);
       return null;
+    }
+  }
+
+  // 확장된 링크 추출 메서드
+  private async extractExpandedLinks($: any): Promise<{ shortUrl: string; fullUrl: string }[]> {
+    const expandedLinks: { shortUrl: string; fullUrl: string }[] = [];
+    
+    try {
+      // 트위터에서 t.co 링크의 실제 URL을 찾는 방법들
+      const linkSelectors = [
+        '[data-testid="tweetText"] a[href*="t.co"]',
+        '[data-testid="tweetText"] a[title]',
+        'a[data-focusable="true"][href*="t.co"]'
+      ];
+
+      for (const selector of linkSelectors) {
+        $(selector).each((_i: number, linkEl: any) => {
+          const $link = $(linkEl);
+          const href = $link.attr('href');
+          const title = $link.attr('title');
+          const linkText = $link.text().trim();
+          
+          // title 속성에 실제 URL이 있는 경우가 많음
+          if (href && title && title.startsWith('http')) {
+            expandedLinks.push({
+              shortUrl: linkText,
+              fullUrl: title
+            });
+          }
+          // aria-label에도 실제 URL이 있을 수 있음
+          else if (href) {
+            const ariaLabel = $link.attr('aria-label');
+            if (ariaLabel && ariaLabel.includes('http')) {
+              const urlMatch = ariaLabel.match(/https?:\/\/[^\s]+/);
+              if (urlMatch) {
+                expandedLinks.push({
+                  shortUrl: linkText,
+                  fullUrl: urlMatch[0]
+                });
+              }
+            }
+          }
+        });
+      }
+
+      return expandedLinks;
+    } catch (error) {
+      scrapingLogger.warn('확장된 링크 추출 중 오류:', error);
+      return [];
+    }
+  }
+
+  // 사용자 타임라인에서 최신 트윗들 스크래핑
+  async scrapeUserTimeline(username: string, maxTweets: number = 10): Promise<TwitterPostData[]> {
+    if (!this.page) {
+      throw new Error('브라우저가 초기화되지 않았습니다');
+    }
+
+    try {
+      scrapingLogger.info(`@${username} 타임라인 스크래핑 시작 (최대 ${maxTweets}개)`);
+      
+      // 사용자 프로필 페이지로 이동
+      const profileUrl = `https://x.com/${username}`;
+      await this.page.goto(profileUrl, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // 페이지 로딩 대기
+      await this.delay(3000);
+
+      // 트윗 링크들 수집
+      const tweetUrls: string[] = [];
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (tweetUrls.length < maxTweets && retryCount < maxRetries) {
+        try {
+          // 트윗 링크 추출
+          const newUrls = await this.page.evaluate(() => {
+            const tweetElements = document.querySelectorAll('article[data-testid="tweet"] a[href*="/status/"]');
+            return Array.from(tweetElements)
+              .map(el => (el as HTMLAnchorElement).href)
+              .filter(url => url.includes('/status/'));
+          });
+
+          // 중복 제거하고 새로운 URL만 추가
+          for (const url of newUrls) {
+            if (!tweetUrls.includes(url) && tweetUrls.length < maxTweets) {
+              tweetUrls.push(url);
+            }
+          }
+
+          scrapingLogger.info(`현재 수집된 트윗 URL: ${tweetUrls.length}개`);
+
+          // 더 많은 트윗을 위해 스크롤
+          if (tweetUrls.length < maxTweets) {
+            await this.page.evaluate(() => {
+              window.scrollTo(0, document.body.scrollHeight);
+            });
+            await this.delay(2000);
+            retryCount++;
+          }
+        } catch (error) {
+          scrapingLogger.warn('트윗 URL 수집 중 오류:', error);
+          retryCount++;
+        }
+      }
+
+      scrapingLogger.info(`총 ${tweetUrls.length}개의 트윗 URL 수집 완료`);
+
+      // 각 트윗 상세 정보 스크래핑
+      const tweets: TwitterPostData[] = [];
+      
+      for (let i = 0; i < tweetUrls.length; i++) {
+        const url = tweetUrls[i];
+        scrapingLogger.info(`트윗 ${i + 1}/${tweetUrls.length} 스크래핑 중...`);
+        
+        try {
+          const tweetData = await this.scrapeTweetDetails(url);
+          
+          if (tweetData) {
+            // scrapeTweetDetails에서 이미 AI 관련 게시물만 반환하므로 바로 추가
+            tweets.push(tweetData);
+            scrapingLogger.info(`AI 관련 트윗 추가: ${tweetData.text.substring(0, 50)}...`);
+          }
+        } catch (error) {
+          scrapingLogger.error(`트윗 스크래핑 실패 (${url}):`, error);
+        }
+
+        // 요청 간 지연
+        await this.delay(SCRAPING_CONFIG.delayBetweenRequests);
+      }
+
+      scrapingLogger.info(`@${username} 타임라인 스크래핑 완료: AI 관련 트윗 ${tweets.length}개 수집`);
+      return tweets;
+
+    } catch (error) {
+      scrapingLogger.error(`@${username} 타임라인 스크래핑 실패:`, error as Error);
+      return [];
+    }
+  }
+
+  // 여러 계정의 타임라인 스크래핑
+  async scrapeMultipleAccounts(usernames: string[], maxTweetsPerUser: number = 10): Promise<TwitterPostData[]> {
+    const allTweets: TwitterPostData[] = [];
+    
+    try {
+      await this.initBrowser();
+      
+      for (let i = 0; i < usernames.length; i++) {
+        const username = usernames[i];
+        scrapingLogger.info(`계정 ${i + 1}/${usernames.length}: @${username} 스크래핑 시작`);
+        
+        try {
+          const tweets = await this.scrapeUserTimeline(username, maxTweetsPerUser);
+          allTweets.push(...tweets);
+          
+          scrapingLogger.info(`@${username}: ${tweets.length}개의 AI 관련 트윗 수집`);
+        } catch (error) {
+          scrapingLogger.error(`@${username} 스크래핑 실패:`, error);
+        }
+
+        // 계정 간 지연 (차단 방지)
+        if (i < usernames.length - 1) {
+          const delayMs = SCRAPING_CONFIG.delayBetweenRequests * 3;
+          scrapingLogger.info(`다음 계정 스크래핑까지 ${delayMs}ms 대기...`);
+          await this.delay(delayMs);
+        }
+      }
+      
+      scrapingLogger.info(`전체 스크래핑 완료: 총 ${allTweets.length}개의 AI 관련 트윗 수집`);
+      return allTweets;
+      
+    } catch (error) {
+      scrapingLogger.error('다중 계정 스크래핑 실패:', error as Error);
+      return allTweets;
+    } finally {
+      await this.closeBrowser();
     }
   }
 

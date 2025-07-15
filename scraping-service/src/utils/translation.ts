@@ -48,27 +48,56 @@ export async function translateTweetToKorean(text: string): Promise<string | nul
     
     scrapingLogger.info('영어 게시물 번역 시작');
     
-    const prompt = `트위터 게시물인데, 말투나 원문 내용을 흐리지 않고 한국어로 자연스럽게 번역해라. 
-모바일 브라우저에서의 가독성을 위해 적절한 위치에 줄바꿈(\\n)을 추가해서 읽기 쉽게 만들어라.
-긴 문장은 의미 단위로 나누고, 문맥상 자연스러운 곳에서 줄바꿈을 넣어라.
-결과물은 번역 결과물 텍스트만 출력할것.
-
-원문: ${text}`;
-
-    const response = await client.responses.create({
-      model: "gpt-4.1",
-      input: prompt
+    // 1. 원문에서 링크 추출 및 플레이스홀더로 치환
+    const linkPattern = /https?:\/\/[^\s]+/g;
+    const originalLinks: string[] = [];
+    let textForTranslation = text;
+    
+    // 링크를 찾아서 저장하고 플레이스홀더로 치환
+    const linkMatches = text.match(linkPattern) || [];
+    linkMatches.forEach((link, index) => {
+      originalLinks.push(link);
+      textForTranslation = textForTranslation.replace(link, `__LINK_${index}__`);
     });
     
-    const translatedText = response.output_text?.trim();
+    scrapingLogger.info(`발견된 링크 수: ${originalLinks.length}개`);
+    
+    const prompt = `다음 트위터 게시물을 한국어로 자연스럽게 번역해주세요.
+원문의 말투와 내용을 유지하면서 모바일에서 읽기 쉽도록 줄바꿈을 적절히 해주세요.
+__LINK_숫자__ 형태의 텍스트는 그대로 유지해주세요.
+
+원문: ${textForTranslation}`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000
+    });
+    
+    const translatedText = response.choices[0]?.message?.content?.trim();
     
     if (!translatedText) {
       scrapingLogger.error('번역 결과가 비어있습니다.');
       return null;
     }
     
-    scrapingLogger.info('번역 완료');
-    return translatedText;
+    // 2. 번역된 텍스트에서 플레이스홀더를 원본 링크로 복원
+    let finalText = translatedText;
+    originalLinks.forEach((link, index) => {
+      finalText = finalText.replace(`__LINK_${index}__`, link);
+    });
+    
+    // \n 문자열이 포함되어 있다면 실제 줄바꿈으로 변환
+    const cleanedText = finalText.replace(/\\n/g, '\n');
+    
+    scrapingLogger.info(`번역 완료 (링크 ${originalLinks.length}개 복원)`);
+    return cleanedText;
     
   } catch (error) {
     scrapingLogger.error('번역 실패:', error as Error);

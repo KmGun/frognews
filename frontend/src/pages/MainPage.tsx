@@ -263,9 +263,10 @@ const MainPage: React.FC = () => {
       });
     });
     
-    // 트위터 게시물들 추가 (카테고리 필터링 시에는 제외)
-    if (selectedCategory === null) {
-      tweets.forEach(tweet => {
+    // 트위터 게시물들 추가 (카테고리 필터링 적용)
+    tweets
+      .filter(tweet => selectedCategory === null || tweet.category === selectedCategory)
+      .forEach(tweet => {
         contentItems.push({
           type: 'tweet',
           data: tweet,
@@ -273,7 +274,8 @@ const MainPage: React.FC = () => {
         });
       });
 
-      // 유튜브 영상들 추가 (카테고리 필터링 시에는 제외)
+    // 유튜브 영상은 기존처럼 카테고리 필터링 없이 추가
+    if (selectedCategory === null) {
       youtubeVideos.forEach(video => {
         contentItems.push({
           type: 'youtube',
@@ -281,6 +283,18 @@ const MainPage: React.FC = () => {
           timestamp: video.publishedAt
         });
       });
+    }
+    
+    // 카테고리 필터링 후 결과 콘솔 출력
+    if (selectedCategory !== null) {
+      const filteredArticleIds = filteredArticles.map(a => a.id);
+      const filteredTweetIds = tweets
+        .filter(tweet => tweet.category === selectedCategory)
+        .map(t => t.id);
+      
+      console.log(`카테고리 ${selectedCategory} 필터링 결과:`);
+      console.log('기사 IDs:', filteredArticleIds);
+      console.log('트윗 IDs:', filteredTweetIds);
     }
     
     // 시간순으로 정렬 (최신순)
@@ -397,27 +411,31 @@ const MainPage: React.FC = () => {
                   </TimelineLeft>
                 </TimelineHeader>
                 <TimelineContent>
-                  {group.items.map((item, itemIndex) => (
-                    <ContentGroup key={`${item.type}-${(item.data as any).id}-${itemIndex}`}>
-                      {item.type === 'article' && (
-                        <ArticleCard
-                          article={item.data as Article}
-                          onClick={() => handleArticleClick(item.data as Article)}
-                        />
-                      )}
-                      {item.type === 'tweet' && (
-                        <TwitterCard
-                          tweet={item.data as Tweet}
-                          onClick={() => handleTweetClick(item.data as Tweet)}
-                        />
-                      )}
-                      {item.type === 'youtube' && (
-                        <YouTubeCard
-                          video={item.data as YouTubeVideo}
-                        />
-                      )}
-                    </ContentGroup>
-                  ))}
+                  {group.items.map((item, itemIndex) => {
+                    return (
+                      <ContentGroup key={`${item.type}-${(item.data as any).id}-${itemIndex}`}>
+                        {item.type === 'article' && (
+                          <ArticleCard
+                            article={item.data as Article}
+                            onClick={() => handleArticleClick(item.data as Article)}
+                          />
+                        )}
+                        {item.type === 'tweet' && (
+                          <>
+                            <TwitterCard
+                              tweet={item.data as Tweet}
+                              onClick={() => handleTweetClick(item.data as Tweet)}
+                            />
+                          </>
+                        )}
+                        {item.type === 'youtube' && (
+                          <YouTubeCard
+                            video={item.data as YouTubeVideo}
+                          />
+                        )}
+                      </ContentGroup>
+                    );
+                  })}
                 </TimelineContent>
               </TimelineItem>
             );

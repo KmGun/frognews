@@ -2,13 +2,18 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Tweet } from '../types';
 
-const Card = styled.div`
+const Card = styled.div<{ $hasExpandButton: boolean }>`
   background-color: #1a1a1a;
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
   border: 1px solid #333;
+  position: relative;
+  
+  ${props => props.$hasExpandButton && `
+    padding-bottom: 60px; /* 하단 버튼을 위한 공간 확보 */
+  `}
   
   &:hover {
     transform: translateY(-4px);
@@ -66,18 +71,100 @@ const TwitterIcon = styled.div`
   font-size: 20px;
 `;
 
-const Content = styled.div`
+const ContentContainer = styled.div`
+  margin-bottom: 16px;
+`;
+
+const Content = styled.div<{ $isExpanded: boolean }>`
   color: #ffffff;
   font-size: 16px;
   line-height: 1.6;
-  margin-bottom: 16px;
   word-wrap: break-word;
-  white-space: pre-wrap; /* 줄바꿈 문자(\n)를 실제 줄바꿈으로 표시 */
-  word-break: break-word; /* 긴 단어도 줄바꿈 */
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  
+  ${props => !props.$isExpanded && `
+    max-height: 7.2em; /* 약 4.5줄 정도 */
+    overflow: hidden;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1.6em; /* 1줄 높이 */
+      background: linear-gradient(to bottom, transparent, #1a1a1a);
+      pointer-events: none;
+    }
+  `}
   
   @media (max-width: 768px) {
     font-size: 15px;
     line-height: 1.5;
+    
+    ${props => !props.$isExpanded && `
+      max-height: 6.75em; /* 모바일에서 약 4.5줄 */
+      
+      &::after {
+        height: 1.5em;
+      }
+    `}
+  }
+`;
+
+const ExpandButton = styled.button`
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #2a2a2a, #1f1f1f);
+  border: none;
+  color: #cccccc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 12px 20px;
+  border-radius: 0 0 12px 12px; /* 카드와 동일한 하단 모서리 */
+  border-top: 1px solid #333;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  
+  &:hover {
+    background: linear-gradient(135deg, #333333, #2a2a2a);
+    color: #ffffff;
+    border-top-color: #444;
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  /* 펼치기/접기 아이콘 */
+  &::after {
+    content: '▼';
+    font-size: 10px;
+    transition: transform 0.3s ease;
+    opacity: 0.8;
+  }
+  
+  &.expanded::after {
+    transform: rotate(180deg);
+    content: '▲';
+  }
+  
+  &:hover::after {
+    opacity: 1;
+  }
+  
+  @media (max-width: 768px) {
+    font-size: 12px;
+    padding: 10px 16px;
   }
 `;
 
@@ -137,6 +224,7 @@ interface TwitterCardProps {
 
 const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('ko-KR', {
@@ -145,6 +233,12 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(date);
+  };
+
+  // 텍스트가 긴지 확인하는 함수
+  const isLongText = (text: string): boolean => {
+    const lines = text.split('\n');
+    return lines.length > 5 || text.length > 280; // 5줄 이상이거나 280자 이상
   };
 
   // 텍스트에서 URL과 멘션을 파싱하여 링크로 변환
@@ -258,7 +352,7 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // 토글 버튼이나 링크 클릭 시 카드 클릭 이벤트 방지
+    // 토글 버튼이나 링크, 확장 버튼 클릭 시 카드 클릭 이벤트 방지
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) {
       return;
     }
@@ -275,10 +369,16 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
     setShowOriginal(!showOriginal);
   };
 
+  const handleExpandToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsExpanded(!isExpanded);
+  };
+
   const displayText = tweet.isTranslated && tweet.textKo && !showOriginal ? tweet.textKo : tweet.text;
+  const shouldShowExpandButton = isLongText(displayText);
 
   return (
-    <Card onClick={handleClick}>
+    <Card onClick={handleClick} $hasExpandButton={shouldShowExpandButton && !isExpanded}>
       <Header>
         {tweet.author.profileImageUrl ? (
           <ProfileImage
@@ -299,9 +399,11 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
         <TwitterIcon>𝕏</TwitterIcon>
       </Header>
       
-      <Content>
-        {parseTextWithLinks(displayText)}
-      </Content>
+      <ContentContainer>
+        <Content $isExpanded={isExpanded || !shouldShowExpandButton}>
+          {parseTextWithLinks(displayText)}
+        </Content>
+      </ContentContainer>
       
       <Footer>
         <Timestamp>{formatDate(tweet.createdAt)}</Timestamp>
@@ -311,6 +413,15 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
           </ToggleButton>
         )}
       </Footer>
+      
+      {shouldShowExpandButton && (
+        <ExpandButton 
+          onClick={handleExpandToggle}
+          className={isExpanded ? 'expanded' : ''}
+        >
+          {isExpanded ? '접기' : '더 보기'}
+        </ExpandButton>
+      )}
     </Card>
   );
 };

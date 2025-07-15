@@ -16,6 +16,7 @@
     "scrape:theverge": "ts-node src/scripts/scrape-theverge.ts",
     "scrape:arstechnica": "ts-node src/scripts/scrape-arstechnica.ts",
     "scrape:twitter": "ts-node src/scripts/scrape-twitter.ts",
+    "scrape:twitter:accounts": "ts-node src/scripts/scrape-twitter-accounts.ts",
     "scrape:youtube": "ts-node src/scripts/scrape-youtube.ts",
     "scrape:bbc": "ts-node src/scripts/scrape-bbc.ts",
     "scrape:techcrunch": "ts-node src/scripts/scrape-techcrunch.ts",

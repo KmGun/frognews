@@ -31,6 +31,7 @@ export interface Tweet {
     retweets: number;
     replies: number;
   };
+  category?: number; // 1~5 카테고리 태깅
 }
 
 // 유튜브 영상 타입

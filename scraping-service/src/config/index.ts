@@ -106,4 +106,39 @@ export const LOG_CONFIG = {
   format: ENV.NODE_ENV === 'production' ? 'json' : 'simple',
   maxFiles: 7,
   maxSize: '20m'
+};
+
+// 트위터 스크래핑 대상 계정들
+export const TWITTER_TARGET_ACCOUNTS = [
+  'elonmusk',
+  'dreamingtulpa',
+  'testingcatalog',
+  'TheHumanoidHub',
+  'alexalbert__',
+  'NotebookLM',
+  'sundarpichai',
+  'satyanadella',
+  'jeffdean',
+  'karpathy',
+  'ylecun',
+  'AndrewYNg',
+  'goodfellow_ian',
+  'fchollet',
+  'hardmaru',
+  'OpenAI',
+  'AnthropicAI',
+  'GoogleAI',
+  'DeepMind',
+  'huggingface',
+  'nvidia',
+  'StabilityAI',
+  'midjourney'
+];
+
+// AI 관련 게시물 판단 설정
+export const AI_DETECTION_CONFIG = {
+  model: 'gpt-4.1-mini', // 비용 효율적인 모델 사용
+  maxTokens: 50,
+  temperature: 0.1, // 일관성 있는 판단을 위해 낮은 값
+  timeoutMs: 10000
 }; 
