@@ -1,6 +1,7 @@
 import { scrapeBBCNews } from '../scrapers/bbc.scraper';
 import { scrapingLogger } from '../utils/logger';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 
 async function main() {
   try {
@@ -11,9 +12,8 @@ async function main() {
     if (result.success && result.articles.length > 0) {
       scrapingLogger.info(`스크래핑 성공: ${result.articles.length}개 기사 수집`);
       
-      // 데이터베이스에 저장
-      await saveArticlesToSupabase(result.articles);
-      scrapingLogger.info('데이터베이스 저장 완료');
+      // 개별 저장으로 이미 저장 완료됨
+      scrapingLogger.info('모든 기사가 실시간으로 데이터베이스에 저장되었습니다.');
     } else {
       scrapingLogger.warn('스크래핑된 기사가 없습니다.');
       if (result.errors.length > 0) {

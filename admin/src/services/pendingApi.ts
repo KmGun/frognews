@@ -214,7 +214,7 @@ export const pendingApi = {
     }
   },
 
-  // 단일 컨텐츠 거부 (삭제)
+  // 단일 컨텐츠 삭제
   async rejectContent(id: string, type: 'articles' | 'tweets' | 'youtube_videos'): Promise<ApiResponse<void>> {
     try {
       let response;
@@ -236,11 +236,11 @@ export const pendingApi = {
 
       return {
         success: true,
-        message: '컨텐츠가 거부되었습니다.',
+        message: '컨텐츠가 삭제되었습니다.',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('컨텐츠 거부 오류:', error);
+      console.error('컨텐츠 삭제 오류:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '알 수 없는 오류',
@@ -292,7 +292,7 @@ export const pendingApi = {
     }
   },
 
-  // 일괄 거부
+  // 일괄 삭제
   async bulkReject(items: Array<{ id: string; type: 'articles' | 'tweets' | 'youtube_videos' }>): Promise<ApiResponse<void>> {
     try {
       // 타입별로 그룹화하여 삭제
@@ -304,16 +304,16 @@ export const pendingApi = {
       const failedRequests = results.filter(result => !result.success);
 
       if (failedRequests.length > 0) {
-        throw new Error('일부 항목의 거부 처리에 실패했습니다.');
+        throw new Error('일부 항목의 삭제 처리에 실패했습니다.');
       }
 
       return {
         success: true,
-        message: `${items.length}개 항목이 거부되었습니다.`,
+        message: `${items.length}개 항목이 삭제되었습니다.`,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('일괄 거부 오류:', error);
+      console.error('일괄 삭제 오류:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '알 수 없는 오류',

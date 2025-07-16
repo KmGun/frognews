@@ -1,101 +1,166 @@
 import { TwitterScraper } from '../scrapers/twitter.scraper';
-import { saveTweetsToSupabase } from '../utils/save-tweets';
+import { saveTweetToSupabase } from '../utils/save-tweets';
 import { scrapingLogger } from '../utils/logger';
 import { TWITTER_TARGET_ACCOUNTS } from '../config';
+import { filterNewTweetIds, extractTweetIdFromUrl, calculatePerformanceMetrics } from '../utils/duplicate-checker';
 
 async function main() {
-  // 명령행 인수에서 설정 읽기
-  const maxTweetsPerUser = parseInt(process.argv[2]) || 5;
-  const accountsParam = process.argv[3];
-  
-  // 스크래핑할 계정 결정
-  let targetAccounts: string[];
-  
-  if (accountsParam) {
-    // 특정 계정들이 지정된 경우
-    targetAccounts = accountsParam.split(',').map(account => account.trim().replace('@', ''));
-    console.log('🎯 지정된 계정들 스크래핑:', targetAccounts.join(', '));
-  } else {
-    // 기본 설정된 모든 계정
-    targetAccounts = TWITTER_TARGET_ACCOUNTS;
-    console.log('🎯 설정된 모든 계정들 스크래핑 (총', targetAccounts.length, '개 계정)');
-  }
-
-  console.log('📋 스크래핑 설정:');
-  console.log('   - 계정당 최대 트윗:', maxTweetsPerUser, '개');
-  console.log('   - 대상 계정:', targetAccounts.length, '개');
-  console.log('   - AI 관련 게시물만 저장: ✓');
-  console.log('');
-
   const scraper = new TwitterScraper();
+  let totalProcessed = 0;
+  let totalAITweets = 0;
+  let totalErrors = 0;
+  let totalNewTweets = 0;
   
   try {
     console.log('🚀 트위터 계정 일괄 스크래핑 시작...');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📋 대상 계정 수: ${TWITTER_TARGET_ACCOUNTS.length}개`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    // 모든 계정의 AI 관련 트윗 수집
-    const allTweets = await scraper.scrapeMultipleAccounts(targetAccounts, maxTweetsPerUser);
-    
-    if (allTweets.length === 0) {
-      console.log('❌ AI 관련 트윗을 찾을 수 없었습니다.');
-      process.exit(1);
-    }
-    
-    console.log('\n📊 스크래핑 결과 요약:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📈 총 수집된 AI 관련 트윗:', allTweets.length, '개');
-    
-    // 계정별 통계
-    const accountStats = targetAccounts.map(account => {
-      const accountTweets = allTweets.filter(tweet => 
-        tweet.author.username.toLowerCase() === account.toLowerCase()
-      );
-      return {
-        account,
-        count: accountTweets.length,
-        translated: accountTweets.filter(t => t.isTranslated).length
-      };
-    }).filter(stat => stat.count > 0);
-
-    accountStats.forEach(stat => {
-      console.log(`   @${stat.account}: ${stat.count}개 (번역: ${stat.translated}개)`);
+    // 각 계정별로 출력
+    TWITTER_TARGET_ACCOUNTS.forEach((account, index) => {
+      console.log(`${(index + 1).toString().padStart(2, ' ')}. @${account}`);
     });
     
-    console.log('\n💾 Supabase 데이터베이스 저장 중...');
-    await saveTweetsToSupabase(allTweets);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('');
     
-    console.log('\n✅ 트위터 계정 일괄 스크래핑 완료!');
+    // 브라우저 초기화
+    await scraper.initBrowser();
+    scrapingLogger.info('트위터 계정 일괄 스크래핑 시작');
+    
+    // 각 계정마다 최신 트윗을 가져와서 즉시 처리
+    const maxTweetsPerAccount = 10; // 계정당 최대 트윗 수
+    
+    console.log('🔍 모든 계정에서 트윗 URL 수집 중...');
+    let totalTweetUrls: string[] = [];
+    
+    // 1단계: 모든 계정에서 트윗 URL만 먼저 수집
+    for (let i = 0; i < TWITTER_TARGET_ACCOUNTS.length; i++) {
+      const username = TWITTER_TARGET_ACCOUNTS[i];
+      console.log(`📋 계정 ${i + 1}/${TWITTER_TARGET_ACCOUNTS.length}: @${username} URL 수집 중`);
+      
+      try {
+        const tweetUrls = await scraper.getUserTweetUrls(username, maxTweetsPerAccount);
+        totalTweetUrls.push(...tweetUrls);
+        
+        console.log(`   ✅ @${username}: ${tweetUrls.length}개 트윗 URL 수집`);
+      } catch (error) {
+        console.log(`   ❌ @${username} URL 수집 실패:`, error);
+      }
+
+      // 계정 간 지연
+      if (i < TWITTER_TARGET_ACCOUNTS.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    console.log(`\n📊 총 ${totalTweetUrls.length}개 트윗 URL 수집 완료`);
+    
+    // 2단계: 중복 체크
+    const allTweetIds = totalTweetUrls.map(url => extractTweetIdFromUrl(url)).filter(id => id !== null) as string[];
+    
+    if (allTweetIds.length === 0) {
+      console.log('❌ 유효한 트윗 ID를 찾을 수 없습니다');
+      return;
+    }
+
+    console.log('🔍 기존 데이터 중복 체크 중...');
+    const newTweetIds = await filterNewTweetIds(allTweetIds);
+    
+    if (newTweetIds.length === 0) {
+      console.log('✅ 새로운 트윗이 없습니다 (모든 트윗이 이미 수집됨)');
+      return;
+    }
+
+    // 3단계: 성능 메트릭 계산 및 표시
+    const metrics = calculatePerformanceMetrics(allTweetIds.length, newTweetIds.length);
+    console.log(`📊 효율성 리포트:`);
+    console.log(`   전체 트윗: ${metrics.totalItems}개`);
+    console.log(`   새로운 트윗: ${metrics.newItems}개`);
+    console.log(`   중복 제외: ${metrics.duplicateItems}개`);
+    console.log(`   ⚡ 효율성: ${metrics.efficiencyPercentage}% 작업량 절약`);
+    console.log(`   ⏱️ 시간 절약: ${metrics.timeSaved}`);
+    console.log(`   💰 비용 절약: ${metrics.costSaved}`);
+
+    // 새로운 트윗 URL만 필터링
+    const newTweetUrls = totalTweetUrls.filter(url => {
+      const tweetId = extractTweetIdFromUrl(url);
+      return tweetId && newTweetIds.includes(tweetId);
+    });
+
+    totalNewTweets = newTweetUrls.length;
+    console.log(`\n🎯 실제 처리할 새로운 트윗: ${totalNewTweets}개`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    // 4단계: 각 트윗을 하나씩 스크래핑하고 즉시 저장
+    for (let i = 0; i < newTweetUrls.length; i++) {
+      const url = newTweetUrls[i];
+      const progress = `${i + 1}/${newTweetUrls.length}`;
+      
+      console.log(`\n🔄 [${progress}] 트윗 처리 중...`);
+      console.log(`🔗 URL: ${url}`);
+      
+      try {
+        totalProcessed++;
+        
+        // 트윗 스크래핑
+        const tweetData = await scraper.scrapeTweetDetails(url);
+        
+        if (tweetData) {
+          // AI 관련 트윗이므로 바로 저장
+          console.log(`💾 데이터베이스 저장 중...`);
+          await saveTweetToSupabase(tweetData);
+          
+          totalAITweets++;
+          console.log(`✅ [${progress}] 저장 완료: ${tweetData.author.name} - ${tweetData.text.substring(0, 50)}...`);
+          
+          // 번역 여부 표시
+          if (tweetData.isTranslated) {
+            console.log(`🇰🇷 번역: ${tweetData.textKo?.substring(0, 50)}...`);
+          }
+        } else {
+          console.log(`⏭️ [${progress}] AI 관련 트윗이 아니거나 스크래핑 실패로 건너뜀`);
+        }
+        
+      } catch (error) {
+        totalErrors++;
+        console.error(`❌ [${progress}] 트윗 처리 실패:`, error);
+        scrapingLogger.error(`트윗 처리 실패 (${url}):`, error as Error);
+      }
+
+      // 트윗 간 지연 (부하 방지)
+      if (i < newTweetUrls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    // 최종 결과 출력
+    console.log('\n📊 스크래핑 완료 리포트');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 최종 결과:');
-    console.log('   - 처리된 계정:', accountStats.length, '개');
-    console.log('   - 저장된 AI 관련 트윗:', allTweets.length, '개');
-    console.log('   - 번역된 트윗:', allTweets.filter(t => t.isTranslated).length, '개');
+    console.log(`🎯 대상 계정: ${TWITTER_TARGET_ACCOUNTS.length}개`);
+    console.log(`📄 처리된 트윗: ${totalProcessed}개`);
+    console.log(`🆕 새로운 트윗: ${totalNewTweets}개`);
+    console.log(`🤖 AI 관련 트윗: ${totalAITweets}개`);
+    console.log(`✅ 성공: ${totalAITweets}개`);
+    console.log(`❌ 실패: ${totalErrors}개`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    if (totalAITweets > 0) {
+      console.log('\n🎉 AI 관련 새 트윗이 데이터베이스에 저장되었습니다!');
+    }
+    
+    scrapingLogger.info(`트위터 계정 일괄 스크래핑 완료 - 성공: ${totalAITweets}, 실패: ${totalErrors}`);
     
   } catch (error) {
     console.error('❌ 스크래핑 실패:', error);
     scrapingLogger.error('트위터 계정 일괄 스크래핑 실패', error as Error);
     process.exit(1);
+  } finally {
+    await scraper.closeBrowser();
+    
+    console.log('\n🏁 스크래핑 프로세스 종료');
+    scrapingLogger.info('트위터 브라우저 종료 완료');
   }
-}
-
-// 사용법 출력
-if (process.argv.includes('--help') || process.argv.includes('-h')) {
-  console.log('트위터 계정 일괄 스크래핑 도구');
-  console.log('');
-  console.log('사용법:');
-  console.log('  yarn scrape:twitter:accounts [계정당_최대_트윗수] [특정계정들]');
-  console.log('');
-  console.log('예시:');
-  console.log('  yarn scrape:twitter:accounts                    # 모든 설정된 계정, 각각 5개씩');
-  console.log('  yarn scrape:twitter:accounts 10                # 모든 설정된 계정, 각각 10개씩');
-  console.log('  yarn scrape:twitter:accounts 5 elonmusk,OpenAI # 특정 계정들만, 각각 5개씩');
-  console.log('');
-  console.log('기능:');
-  console.log('  - AI 관련 게시물만 자동 필터링');
-  console.log('  - 영어 게시물 자동 한국어 번역');
-  console.log('  - Supabase 데이터베이스 자동 저장');
-  console.log('  - 중복 게시물 자동 방지');
-  process.exit(0);
 }
 
 // 스크립트 실행

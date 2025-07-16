@@ -16,7 +16,10 @@ export async function saveTweetToSupabase(tweet: TwitterPostData) {
     url: tweet.url,
     scraped_at: new Date().toISOString(),
     is_active: true,
-    category: tweet.category || 5
+    category: tweet.category || 5,
+    // 미디어 정보 추가
+    media: tweet.media && tweet.media.length > 0 ? JSON.stringify(tweet.media) : null,
+    external_links: tweet.externalLinks && tweet.externalLinks.length > 0 ? JSON.stringify(tweet.externalLinks) : null
   };
 
   // id 기준 upsert (중복시 덮어쓰기)
@@ -30,7 +33,9 @@ export async function saveTweetToSupabase(tweet: TwitterPostData) {
   }
   
   const translationInfo = tweet.isTranslated ? ' (번역됨)' : '';
-  console.log('✅ 트위터 게시물 저장 완료:', tweet.author.name, '-', tweet.text.substring(0, 50) + '...' + translationInfo);
+  const mediaInfo = tweet.media && tweet.media.length > 0 ? ` (미디어 ${tweet.media.length}개)` : '';
+  const linkInfo = tweet.externalLinks && tweet.externalLinks.length > 0 ? ` (링크 ${tweet.externalLinks.length}개)` : '';
+  console.log('✅ 트위터 게시물 저장 완료:', tweet.author.name, '-', tweet.text.substring(0, 50) + '...' + translationInfo + mediaInfo + linkInfo);
   return data;
 }
 
@@ -49,7 +54,10 @@ export async function saveTweetsToSupabase(tweets: TwitterPostData[]) {
     url: tweet.url,
     scraped_at: new Date().toISOString(),
     is_active: true,
-    category: tweet.category || 5
+    category: tweet.category || 5,
+    // 미디어 정보 추가
+    media: tweet.media && tweet.media.length > 0 ? JSON.stringify(tweet.media) : null,
+    external_links: tweet.externalLinks && tweet.externalLinks.length > 0 ? JSON.stringify(tweet.externalLinks) : null
   }));
 
   // id 기준 upsert (중복시 덮어쓰기)
@@ -63,6 +71,8 @@ export async function saveTweetsToSupabase(tweets: TwitterPostData[]) {
   }
   
   const translatedCount = tweets.filter(t => t.isTranslated).length;
-  console.log(`✅ 트위터 게시물 ${tweets.length}개 일괄 저장 완료 (번역: ${translatedCount}개)`);
+  const mediaCount = tweets.filter(t => t.media && t.media.length > 0).length;
+  const linkCount = tweets.filter(t => t.externalLinks && t.externalLinks.length > 0).length;
+  console.log(`✅ 트위터 게시물 ${tweets.length}개 일괄 저장 완료 (번역: ${translatedCount}개, 미디어: ${mediaCount}개, 링크: ${linkCount}개)`);
   return data;
 } 

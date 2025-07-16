@@ -530,7 +530,7 @@ export const editApi = {
           details: JSON.stringify(article.details),
           category: article.category,
         })
-        .eq('id', parseInt(article.id))
+        .eq('id', article.id)
         .select();
 
       if (error) throw error;

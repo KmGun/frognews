@@ -1,6 +1,6 @@
-import React from 'react';
-import styled from 'styled-components';
-import { CATEGORIES } from '../types';
+import React from "react";
+import styled from "styled-components";
+import { CATEGORIES } from "../types";
 
 const TagsContainer = styled.div`
   display: flex;
@@ -10,27 +10,28 @@ const TagsContainer = styled.div`
   margin: 30px 0;
 `;
 
-const TagButton = styled.button<{ active: boolean; color: string }>`
-  background-color: ${props => props.active ? props.color : 'transparent'};
-  color: ${props => props.active ? '#ffffff' : '#cccccc'};
-  border: 2px solid ${props => props.color};
+const TagButton = styled.button<{ $active: boolean; $color: string }>`
+  background-color: ${(props) =>
+    props.$active ? props.$color : "transparent"};
+  color: ${(props) => (props.$active ? "#ffffff" : "#cccccc")};
+  border: 2px solid ${(props) => props.$color};
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
-    background-color: ${props => props.color};
+    background-color: ${(props) => props.$color};
     color: #ffffff;
     transform: translateY(-2px);
   }
 `;
 
-const AllButton = styled.button<{ active: boolean }>`
-  background-color: ${props => props.active ? '#ffffff' : 'transparent'};
-  color: ${props => props.active ? '#0a0a0a' : '#cccccc'};
+const AllButton = styled.button<{ $active: boolean }>`
+  background-color: ${(props) => (props.$active ? "#ffffff" : "transparent")};
+  color: ${(props) => (props.$active ? "#0a0a0a" : "#cccccc")};
   border: 2px solid #ffffff;
   padding: 8px 16px;
   border-radius: 20px;
@@ -38,7 +39,7 @@ const AllButton = styled.button<{ active: boolean }>`
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
     background-color: #ffffff;
     color: #0a0a0a;
@@ -60,7 +61,7 @@ const CategoryTags: React.FC<CategoryTagsProps> = ({
   return (
     <TagsContainer>
       <AllButton
-        active={selectedCategory === null}
+        $active={selectedCategory === null}
         onClick={() => onCategorySelect(null)}
       >
         전체
@@ -68,9 +69,9 @@ const CategoryTags: React.FC<CategoryTagsProps> = ({
       {Object.entries(categories).map(([key, category]) => (
         <TagButton
           key={key}
-          active={selectedCategory === Number(key)}
-          color={category.color}
-          onClick={() => onCategorySelect(Number(key))}
+          $active={selectedCategory === parseInt(key)}
+          $color={category.color}
+          onClick={() => onCategorySelect(parseInt(key))}
         >
           {category.name}
         </TagButton>
@@ -79,4 +80,4 @@ const CategoryTags: React.FC<CategoryTagsProps> = ({
   );
 };
 
-export default CategoryTags; 
+export default CategoryTags;

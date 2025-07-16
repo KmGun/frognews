@@ -95,6 +95,7 @@ const convertRowToYouTubeVideo = (row: any): YouTubeVideo => {
     thumbnailUrl: row.thumbnail_url,
     channelName: row.channel_name,
     publishedAt: new Date(row.published_at),
+    createdAt: new Date(row.created_at),
     duration: row.duration,
     viewCount: row.view_count,
     url: `https://www.youtube.com/watch?v=${row.id}`
@@ -121,6 +122,7 @@ export const articleApi = {
       const { data, error } = await supabase
         .from('articles')
         .select('*')
+        .eq('is_approved', true)
         .order('published_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
@@ -171,6 +173,7 @@ export const articleApi = {
         .from('articles')
         .select('*')
         .eq('category', category)
+        .eq('is_approved', true)
         .order('published_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
@@ -206,6 +209,7 @@ export const articleApi = {
         .from('articles')
         .select('*')
         .or(`title_summary.ilike.%${query}%,summary_lines.ilike.%${query}%`)
+        .eq('is_approved', true)
         .order('published_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
@@ -244,6 +248,7 @@ export const articleApi = {
         .from('articles')
         .select('*')
         .eq('id', parseInt(id))
+        .eq('is_approved', true)
         .single();
 
       if (error) {
@@ -278,6 +283,7 @@ export const tweetApi = {
         .from('tweets')
         .select('*')
         .eq('is_active', true)
+        .eq('is_approved', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -305,6 +311,7 @@ export const tweetApi = {
         .select('*')
         .eq('id', id)
         .eq('is_active', true)
+        .eq('is_approved', true)
         .single();
 
       if (error) {
@@ -335,6 +342,7 @@ export const youtubeApi = {
         .from('youtube_videos')
         .select('*')
         .eq('is_active', true)
+        .eq('is_approved', true)
         .order('published_at', { ascending: false });
 
       if (error) {
@@ -362,6 +370,7 @@ export const youtubeApi = {
         .select('*')
         .eq('channel_name', channelName)
         .eq('is_active', true)
+        .eq('is_approved', true)
         .order('published_at', { ascending: false });
 
       if (error) {
@@ -389,6 +398,7 @@ export const youtubeApi = {
         .select('*')
         .eq('id', id)
         .eq('is_active', true)
+        .eq('is_approved', true)
         .single();
 
       if (error) {

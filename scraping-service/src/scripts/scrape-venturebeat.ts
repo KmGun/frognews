@@ -1,5 +1,6 @@
 import { scrapeVentureBeatNews } from '../scrapers/venturebeat.scraper';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 import { scrapingLogger } from '../utils/logger';
 
 async function main() {
@@ -17,17 +18,8 @@ async function main() {
     const result = await scrapeVentureBeatNews(openaiApiKey);
 
     if (result.success && result.articles.length > 0) {
-      console.log(`\n📝 ${result.articles.length}개 기사를 Supabase에 저장 중...`);
-      scrapingLogger.info(`${result.articles.length}개 기사를 Supabase에 저장 시작`);
-      
-      try {
-        await saveArticlesToSupabase(result.articles);
-        console.log(`✅ 성공적으로 ${result.articles.length}개 기사를 저장했습니다.`);
-        scrapingLogger.info(`성공적으로 ${result.articles.length}개 기사를 저장`);
-      } catch (saveError) {
-        console.error('❌ 기사 저장 중 오류가 발생했습니다:', saveError);
-        scrapingLogger.error('기사 저장 실패', saveError as Error);
-      }
+      console.log(`\n📝 ${result.articles.length}개 기사가 실시간으로 Supabase에 저장되었습니다.`);
+      scrapingLogger.info(`${result.articles.length}개 기사 실시간 저장 완료`);
     } else {
       console.log('⚠️  스크래핑된 기사가 없습니다.');
       scrapingLogger.warn('스크래핑된 기사 없음');

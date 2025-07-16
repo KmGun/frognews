@@ -13,6 +13,7 @@ const ImageContainer = styled.div`
   overflow: hidden;
   position: relative;
   background-color: #1a1a1a;
+  touch-action: pan-y; /* 세로 스크롤은 허용하고 가로 스와이프만 제어 */
 `;
 
 const Image = styled.img`
@@ -51,9 +52,17 @@ const NavigationButton = styled.button<{ direction: 'left' | 'right' }>`
   font-size: 20px;
   transition: all 0.3s ease;
   
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.9);
-    transform: translateY(-50%) scale(1.1);
+  /* 데스크톱에서만 표시 */
+  @media (min-width: 768px) {
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.9);
+      transform: translateY(-50%) scale(1.1);
+    }
+  }
+  
+  /* 모바일에서는 숨김 */
+  @media (max-width: 767px) {
+    display: none;
   }
   
   &:disabled {
@@ -108,6 +117,13 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, title }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
 
+  // 터치 이벤트 상태
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [touchEndX, setTouchEndX] = useState(0);
+  const [touchEndY, setTouchEndY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   const handlePrevious = () => {
     setCurrentIndex((prevIndex) => 
       prevIndex === 0 ? images.length - 1 : prevIndex - 1
@@ -128,6 +144,60 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, title }) => {
     setImageErrors(prev => new Set(prev).add(index));
   };
 
+  // 터치 이벤트 핸들러들
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (images.length <= 1) return;
+    
+    const touch = e.touches[0];
+    setTouchStartX(touch.clientX);
+    setTouchStartY(touch.clientY);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (images.length <= 1 || !isDragging) return;
+    
+    const touch = e.touches[0];
+    setTouchEndX(touch.clientX);
+    setTouchEndY(touch.clientY);
+
+    // 가로 스와이프가 세로 스와이프보다 큰 경우에만 스크롤 방지
+    const deltaX = Math.abs(touch.clientX - touchStartX);
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+    
+    if (deltaX > deltaY && deltaX > 10) {
+      e.preventDefault(); // 가로 스와이프가 감지되면 기본 동작 방지
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (images.length <= 1 || !isDragging) return;
+    
+    setIsDragging(false);
+    
+    const swipeThreshold = 50; // 최소 스와이프 거리
+    const deltaX = touchStartX - touchEndX;
+    const deltaY = Math.abs(touchStartY - touchEndY);
+    
+    // 가로 스와이프가 세로 스와이프보다 크고, 임계값을 넘는 경우에만 처리
+    if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > deltaY) {
+      e.preventDefault(); // 스와이프가 감지된 경우에만 기본 동작 방지
+      
+      if (deltaX > 0) {
+        // 왼쪽으로 스와이프 (다음 이미지)
+        handleNext();
+      } else {
+        // 오른쪽으로 스와이프 (이전 이미지)
+        handlePrevious();
+      }
+    }
+    
+    setTouchStartX(0);
+    setTouchStartY(0);
+    setTouchEndX(0);
+    setTouchEndY(0);
+  };
+
   if (!images || images.length === 0) {
     return (
       <CarouselContainer>
@@ -143,7 +213,11 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, title }) => {
 
   return (
     <CarouselContainer>
-      <ImageContainer>
+      <ImageContainer
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {hasError ? (
           <ImagePlaceholder>📰</ImagePlaceholder>
         ) : (

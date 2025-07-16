@@ -1,0 +1,13 @@
+{
+  "buildCommand": "yarn build",
+  "outputDirectory": "build",
+  "installCommand": "yarn install",
+  "devCommand": "yarn start",
+  "framework": "create-react-app",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+} 

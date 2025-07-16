@@ -12,7 +12,8 @@ import { scrapeTheVergeNews } from '../scrapers/theverge.scraper';
 import { scrapeBBCNews } from '../scrapers/bbc.scraper';
 import { TwitterScraper } from '../scrapers/twitter.scraper';
 import { YouTubeScraper } from '../scrapers/youtube.scraper';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 import { saveTweetsToSupabase } from '../utils/save-tweets';
 import { saveYouTubeVideo } from '../utils/save-youtube-videos';
 import { TWITTER_TARGET_ACCOUNTS } from '../config';
@@ -159,16 +160,18 @@ async function runAllScrapers(): Promise<void> {
     }
   ];
 
-  // 뉴스 사이트 병렬 스크래핑
-  console.log(`${colors.bright}${colors.blue}📰 뉴스 사이트 스크래핑 (${newsScrapingTasks.length}개 소스)${colors.reset}`);
+  // 뉴스 사이트 직렬 스크래핑 (Rate Limit 해결)
+  console.log(`${colors.bright}${colors.blue}📰 뉴스 사이트 스크래핑 (${newsScrapingTasks.length}개 소스 - 직렬 실행)${colors.reset}`);
   console.log(`${colors.gray}${'─'.repeat(50)}${colors.reset}`);
   
   let completedTasks = 0;
   const totalTasks = newsScrapingTasks.length + 1; // +1 for Twitter
+  const newsResults: ScrapingTaskResult[] = [];
   
-  const newsPromises = newsScrapingTasks.map(async (task) => {
+  // 각 뉴스 사이트를 순차적으로 실행
+  for (const task of newsScrapingTasks) {
     const taskStartTime = performance.now();
-    console.log(`${symbols.running} ${colors.yellow}${task.name}${colors.reset} 스크래핑 중...`);
+    console.log(`${symbols.running} ${colors.yellow}${task.name}${colors.reset} 스크래핑 중... (${completedTasks + 1}/${newsScrapingTasks.length})`);
     
     try {
       const result = await task.scraper();
@@ -176,29 +179,28 @@ async function runAllScrapers(): Promise<void> {
       completedTasks++;
       
       if (result.success && result.articles.length > 0) {
-        // Supabase에 저장
-        await saveArticlesToSupabase(result.articles);
-        console.log(`${symbols.success} ${colors.green}${task.name}${colors.reset}: ${colors.bright}${result.articles.length}${colors.reset}개 기사 저장 완료 ${colors.gray}(${formatDuration(duration)})${colors.reset}`);
+        // 개별 저장이므로 이미 저장 완료됨
+        console.log(`${symbols.success} ${colors.green}${task.name}${colors.reset}: ${colors.bright}${result.articles.length}${colors.reset}개 기사 실시간 저장 완료 ${colors.gray}(${formatDuration(duration)})${colors.reset}`);
         
-        return {
+        newsResults.push({
           name: task.name,
           success: true,
           articlesCount: result.articles.length,
           errors: result.errors || [],
           duration,
           status: 'completed'
-        } as ScrapingTaskResult;
+        });
       } else {
         console.log(`${symbols.warning} ${colors.yellow}${task.name}${colors.reset}: 새로운 기사 없음 ${colors.gray}(${formatDuration(duration)})${colors.reset}`);
         
-        return {
+        newsResults.push({
           name: task.name,
           success: true,
           articlesCount: 0,
           errors: result.errors || [],
           duration,
           status: 'completed'
-        } as ScrapingTaskResult;
+        });
       }
     } catch (error) {
       const duration = performance.now() - taskStartTime;
@@ -206,19 +208,23 @@ async function runAllScrapers(): Promise<void> {
       console.log(`${symbols.failed} ${colors.red}${task.name}${colors.reset}: 스크래핑 실패 ${colors.gray}(${formatDuration(duration)})${colors.reset}`);
       console.log(`${colors.gray}   └─ ${error instanceof Error ? error.message : String(error)}${colors.reset}`);
       
-      return {
+      newsResults.push({
         name: task.name,
         success: false,
         articlesCount: 0,
         errors: [error instanceof Error ? error.message : String(error)],
         duration,
         status: 'failed'
-      } as ScrapingTaskResult;
+      });
     }
-  });
+    
+    // OpenAI API Rate Limit 방지를 위한 지연 (마지막 작업 제외)
+    if (completedTasks < newsScrapingTasks.length) {
+      console.log(`${colors.gray}   ⏳ API Rate Limit 방지를 위해 3초 대기...${colors.reset}`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
 
-  // 모든 뉴스 스크래핑 결과 대기
-  const newsResults = await Promise.all(newsPromises);
   results.push(...newsResults);
 
   // 트위터 계정 스크래핑

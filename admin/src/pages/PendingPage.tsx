@@ -229,7 +229,7 @@ export const PendingPage: React.FC = () => {
     }
   };
 
-  // 개별 거부
+  // 개별 삭제
   const handleReject = async (id: string, contentType: string) => {
     try {
       const response = await pendingApi.rejectContent(
@@ -238,7 +238,7 @@ export const PendingPage: React.FC = () => {
       );
 
       if (response.success) {
-        toast.success(response.message || '거부되었습니다.');
+        toast.success(response.message || '삭제되었습니다.');
         // 목록에서 제거
         setContent(prev => prev.filter(item => item.id !== id));
         setSelectedItems(prev => {
@@ -249,11 +249,11 @@ export const PendingPage: React.FC = () => {
         // 총 개수 업데이트
         setPagination(prev => ({ ...prev, total: prev.total - 1 }));
       } else {
-        toast.error(response.error || '거부에 실패했습니다.');
+        toast.error(response.error || '삭제에 실패했습니다.');
       }
     } catch (error) {
-      console.error('거부 오류:', error);
-      toast.error('거부 중 오류가 발생했습니다.');
+      console.error('삭제 오류:', error);
+      toast.error('삭제 중 오류가 발생했습니다.');
     }
   };
 
@@ -290,10 +290,10 @@ export const PendingPage: React.FC = () => {
     }
   };
 
-  // 일괄 거부
+  // 일괄 삭제
   const handleBulkReject = async () => {
     if (selectedItems.size === 0) {
-      toast.error('거부할 항목을 선택해주세요.');
+      toast.error('삭제할 항목을 선택해주세요.');
       return;
     }
 
@@ -308,16 +308,16 @@ export const PendingPage: React.FC = () => {
       const response = await pendingApi.bulkReject(items);
       
       if (response.success) {
-        toast.success(response.message || '일괄 거부되었습니다.');
+        toast.success(response.message || '일괄 삭제되었습니다.');
         setContent(prev => prev.filter(item => !selectedItems.has(item.id)));
         setPagination(prev => ({ ...prev, total: prev.total - selectedItems.size }));
         setSelectedItems(new Set());
       } else {
-        toast.error(response.error || '일괄 거부에 실패했습니다.');
+        toast.error(response.error || '일괄 삭제에 실패했습니다.');
       }
     } catch (error) {
-      console.error('일괄 거부 오류:', error);
-      toast.error('일괄 거부 중 오류가 발생했습니다.');
+      console.error('일괄 삭제 오류:', error);
+      toast.error('일괄 삭제 중 오류가 발생했습니다.');
     } finally {
       setBulkActionLoading(false);
     }
@@ -512,7 +512,7 @@ export const PendingPage: React.FC = () => {
                 onClick={handleBulkReject}
                 disabled={bulkActionLoading}
               >
-                일괄 거부
+                일괄 삭제
               </Button>
             </BulkControls>
           )}

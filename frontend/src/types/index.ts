@@ -43,6 +43,7 @@ export interface YouTubeVideo {
   channelName: string;
   channelUrl?: string;
   publishedAt: Date;
+  createdAt: Date;
   duration?: string;
   viewCount?: number;
   url: string;

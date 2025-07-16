@@ -1,5 +1,6 @@
 import { scrapeTechCrunchNews } from '../scrapers/techcrunch.scraper';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 import { scrapingLogger } from '../utils/logger';
 
 async function main() {
@@ -21,16 +22,9 @@ async function main() {
       console.log(`- 성공한 기사 수: ${result.articles.length}`);
       console.log(`- 실패한 기사 수: ${result.errors.length}`);
 
-      // Supabase에 저장
-      console.log('\n💾 Supabase에 기사 저장 중...');
-      try {
-        await saveArticlesToSupabase(result.articles);
-        console.log(`✅ ${result.articles.length}개 기사가 성공적으로 저장되었습니다`);
-        scrapingLogger.info(`TechCrunch 스크래핑 완료: ${result.articles.length}개 기사 저장`);
-      } catch (saveError) {
-        console.error('❌ 기사 저장 실패:', saveError);
-        scrapingLogger.error('기사 저장 실패', saveError as Error);
-      }
+      // 개별 저장으로 이미 저장 완료됨
+      console.log(`✅ ${result.articles.length}개 기사가 실시간으로 저장되었습니다`);
+      scrapingLogger.info(`TechCrunch 스크래핑 완료: ${result.articles.length}개 기사 실시간 저장`);
 
       // 오류가 있다면 로그 출력
       if (result.errors.length > 0) {

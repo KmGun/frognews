@@ -85,6 +85,10 @@ const ActionButton = styled.button<{ $variant: 'approve' | 'reject' | 'edit' | '
 const EditableField = styled.div<{ $isEditing: boolean }>`
   position: relative;
   cursor: ${props => props.$isEditing ? 'default' : 'pointer'};
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 20px;
   
   &:hover {
     background: ${props => props.$isEditing ? 'transparent' : 'rgba(16, 185, 129, 0.05)'};
@@ -593,7 +597,7 @@ const ContentCard: React.FC<ContentCardProps> = ({
                 승인
               </ActionButton>
               <ActionButton $variant="reject" onClick={handleReject}>
-                거부
+                삭제
               </ActionButton>
             </>
           )}
@@ -781,7 +785,7 @@ const ContentCard: React.FC<ContentCardProps> = ({
                 승인
               </ActionButton>
               <ActionButton $variant="reject" onClick={handleReject}>
-                거부
+                삭제
               </ActionButton>
             </>
           )}
@@ -906,7 +910,7 @@ const ContentCard: React.FC<ContentCardProps> = ({
                 승인
               </ActionButton>
               <ActionButton $variant="reject" onClick={handleReject}>
-                거부
+                삭제
               </ActionButton>
             </>
           )}

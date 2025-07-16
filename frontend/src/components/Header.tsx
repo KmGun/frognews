@@ -1,5 +1,5 @@
-import React from 'react';
-import styled from 'styled-components';
+import React from "react";
+import styled from "styled-components";
 
 const HeaderContainer = styled.header`
   background-color: #0a0a0a;
@@ -68,4 +68,4 @@ const Header: React.FC = () => {
   );
 };
 
-export default Header; 
+export default Header;

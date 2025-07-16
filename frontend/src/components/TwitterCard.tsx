@@ -12,7 +12,7 @@ const Card = styled.div<{ $hasExpandButton: boolean }>`
   position: relative;
   
   ${props => props.$hasExpandButton && `
-    padding-bottom: 60px; /* 하단 버튼을 위한 공간 확보 */
+    padding-bottom: 70px; /* 하단 버튼을 위한 공간 더 확보 */
   `}
   
   &:hover {
@@ -85,7 +85,7 @@ const Content = styled.div<{ $isExpanded: boolean }>`
   position: relative;
   
   ${props => !props.$isExpanded && `
-    max-height: 7.2em; /* 약 4.5줄 정도 */
+    max-height: 9.6em; /* 약 6줄 정도로 증가 */
     overflow: hidden;
     
     &::after {
@@ -94,8 +94,8 @@ const Content = styled.div<{ $isExpanded: boolean }>`
       bottom: 0;
       left: 0;
       right: 0;
-      height: 1.6em; /* 1줄 높이 */
-      background: linear-gradient(to bottom, transparent, #1a1a1a);
+      height: 2.4em; /* 1.5줄 높이로 증가 */
+      background: linear-gradient(to bottom, transparent 0%, rgba(26, 26, 26, 0.7) 50%, #1a1a1a 100%);
       pointer-events: none;
     }
   `}
@@ -105,10 +105,11 @@ const Content = styled.div<{ $isExpanded: boolean }>`
     line-height: 1.5;
     
     ${props => !props.$isExpanded && `
-      max-height: 6.75em; /* 모바일에서 약 4.5줄 */
+      max-height: 9em; /* 모바일에서 약 6줄 */
       
       &::after {
-        height: 1.5em;
+        height: 2.25em;
+        background: linear-gradient(to bottom, transparent 0%, rgba(26, 26, 26, 0.7) 50%, #1a1a1a 100%);
       }
     `}
   }
@@ -204,12 +205,19 @@ const ToggleButton = styled.button`
   }
 `;
 
-const Footer = styled.div`
+const Footer = styled.div<{ $isExpanded: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
   border-top: 1px solid #333;
+  position: relative;
+  z-index: 2; /* ExpandButton보다 위에 표시 */
+  background-color: #1a1a1a; /* 배경색 명시하여 겹침 방지 */
+  
+  ${props => props.$isExpanded && `
+    margin-bottom: 8px; /* 펼쳤을 때 하단 여백 추가 */
+  `}
 `;
 
 const Timestamp = styled.span`
@@ -235,10 +243,10 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
     }).format(date);
   };
 
-  // 텍스트가 긴지 확인하는 함수
+  // 텍스트가 긴지 확인하는 함수 (기준 완화)
   const isLongText = (text: string): boolean => {
     const lines = text.split('\n');
-    return lines.length > 5 || text.length > 280; // 5줄 이상이거나 280자 이상
+    return lines.length > 6 || text.length > 350; // 6줄 이상이거나 350자 이상으로 변경
   };
 
   // 텍스트에서 URL과 멘션을 파싱하여 링크로 변환
@@ -405,7 +413,7 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
         </Content>
       </ContentContainer>
       
-      <Footer>
+      <Footer $isExpanded={isExpanded}>
         <Timestamp>{formatDate(tweet.createdAt)}</Timestamp>
         {tweet.isTranslated && tweet.textKo && (
           <ToggleButton onClick={handleToggle}>

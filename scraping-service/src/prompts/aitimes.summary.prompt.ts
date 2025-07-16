@@ -1,4 +1,7 @@
-export function getAiTimesSummaryPrompt(title: string, content: string): string {
+export function getAiTimesSummaryPrompt(
+  title: string,
+  content: string
+): string {
   return `다음 AI 관련 뉴스 기사를 한국어로 간결하게 요약해주세요. 핵심 내용과 중요한 포인트만 포함해주세요. 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
 
 제목: ${title}
@@ -47,7 +50,10 @@ export function getContentSummaryPrompt(content: string): string {
  * @param content 기사 본문
  * @returns 세부 설명 프롬프트
  */
-export function getDetailForSummaryLinePrompt(summaryLine: string, content: string): string {
+export function getDetailForSummaryLinePrompt(
+  summaryLine: string,
+  content: string
+): string {
   return `아래는 뉴스 기사 본문과, 그 본문을 요약한 한 문장입니다.
 
 [기사 본문]
@@ -58,7 +64,7 @@ ${summaryLine}
 
 위 요약 문장에 대해, 본문 내용을 바탕으로 요약적으로 세부설명을 붙여라.
 세부설명은 본문 내용에 무조건적으로 기반해야한다.
-내용은 최대 120자로만 해야한다.
+내용은 최대 150자로만 해야한다.
 또 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력할것.
 "제목:", "상세설명:", 따옴표(""), 번호(1,2,3) 등의 포맷팅은 절대 포함하지 말고 오직 설명 텍스트만 출력해라.`;
 }
@@ -69,7 +75,10 @@ ${summaryLine}
  * @param summary 본문 요약(3줄)
  * @returns 카테고리 태깅 프롬프트
  */
-export function getCategoryTaggingPrompt(title: string, summary: string): string {
+export function getCategoryTaggingPrompt(
+  title: string,
+  summary: string
+): string {
   return `아래는 AI 뉴스 기사 제목과 요약입니다. 이 기사가 어떤 카테고리에 속하는지 1~5 중 하나의 숫자만 골라서 답변해줘. 반드시 숫자만 출력해야 해. 원어가 영어일 경우 한국어로 번역된 자연스러운 결과를 출력해주세요.
 
 [카테고리 정의]

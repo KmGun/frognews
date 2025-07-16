@@ -1,6 +1,7 @@
 import { scrapeNewsTheAiNews } from '../scrapers/newstheai.scraper';
 import { scrapingLogger } from '../utils/logger';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 
 async function main() {
   try {
@@ -47,9 +48,8 @@ async function main() {
         }
       });
 
-      // Supabase 저장
-      await saveArticlesToSupabase(result.articles);
-      console.log('✅ Supabase 저장 완료!');
+      // 개별 저장으로 이미 저장 완료됨
+      console.log('✅ 모든 기사가 실시간으로 Supabase에 저장되었습니다!');
       
     } else {
       console.log('❌ 스크래핑 실패');

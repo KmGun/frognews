@@ -5,13 +5,21 @@ import { v4 as uuidv4 } from 'uuid';
 class UserService {
   private sessionId: string | null = null;
   private userId: string | null = null;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor() {
-    this.initializeSession();
+    this.initializationPromise = this.initializeSession();
+  }
+
+  // 초기화 완료를 기다리는 메서드
+  private async waitForInitialization(): Promise<void> {
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+    }
   }
 
   // 세션 초기화
-  private async initializeSession() {
+  private async initializeSession(): Promise<void> {
     // 로컬 스토리지에서 세션 ID 확인
     let sessionId = localStorage.getItem('frognews_session_id');
     
@@ -99,6 +107,9 @@ class UserService {
 
   // 읽은 기사 기록
   async markArticleAsRead(articleId: string, readingDuration: number): Promise<void> {
+    // 초기화 완료 대기
+    await this.waitForInitialization();
+    
     if (!this.userId) {
       console.warn('사용자 ID가 없어 기사 읽기 기록을 저장할 수 없습니다.');
       return;
@@ -154,6 +165,9 @@ class UserService {
 
   // 사용자가 읽은 기사 ID 목록 조회
   async getReadArticleIds(): Promise<string[]> {
+    // 초기화 완료 대기
+    await this.waitForInitialization();
+    
     if (!this.userId) {
       return [];
     }

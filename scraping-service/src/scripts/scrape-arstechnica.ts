@@ -1,5 +1,6 @@
 import { scrapeArsTechnicaNews } from '../scrapers/arstechnica.scraper';
-import { saveArticlesToSupabase } from '../utils/save-articles';
+// 개별 저장으로 변경되어 더 이상 필요하지 않음
+// import { saveArticlesToSupabase } from '../utils/save-articles';
 import { scrapingLogger } from '../utils/logger';
 
 async function main() {
@@ -17,10 +18,8 @@ async function main() {
     const result = await scrapeArsTechnicaNews(openaiApiKey);
     
     if (result.success && result.articles.length > 0) {
-      console.log(`\n💾 Supabase에 ${result.articles.length}개 기사 저장 중...`);
-      scrapingLogger.info(`Supabase에 ${result.articles.length}개 기사 저장 시작`);
-      
-      await saveArticlesToSupabase(result.articles);
+      console.log(`\n💾 ${result.articles.length}개 기사가 실시간으로 Supabase에 저장되었습니다.`);
+      scrapingLogger.info(`${result.articles.length}개 기사 실시간 저장 완료`);
       
       console.log('✅ 모든 작업이 완료되었습니다!');
       scrapingLogger.info('Ars Technica 뉴스 스크래핑 및 저장 완료');
