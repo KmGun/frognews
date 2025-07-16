@@ -19,15 +19,13 @@ const HeaderContent = styled.div`
 const LogoContainer = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 `;
 
-const FrogEmoji = styled.div`
-  font-size: 40px;
-`;
-
-const BeerEmoji = styled.div`
-  font-size: 32px;
+const LogoImage = styled.img`
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 `;
 
 const TextContainer = styled.div`
@@ -56,12 +54,11 @@ const Header: React.FC = () => {
     <HeaderContainer>
       <HeaderContent>
         <LogoContainer>
-          <FrogEmoji>🐸</FrogEmoji>
-          <BeerEmoji>🍺</BeerEmoji>
+          <LogoImage src="/frognewslogo.png" alt="FrogNews Logo" />
         </LogoContainer>
         <TextContainer>
           <Title>FrogNews</Title>
-          <Subtitle>인공지능 핵심 요약 뉴스</Subtitle>
+          <Subtitle>핵심만 전달하는 AI 뉴스</Subtitle>
         </TextContainer>
       </HeaderContent>
     </HeaderContainer>

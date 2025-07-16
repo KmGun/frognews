@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { ParsedArticle, ParsedTweet, ParsedYouTubeVideo } from '../../types';
+import React, { useState } from "react";
+import styled from "styled-components";
+import { ParsedArticle, ParsedTweet, ParsedYouTubeVideo } from "../../types";
 
 interface ContentCardProps {
   content: ParsedArticle | ParsedTweet | ParsedYouTubeVideo;
@@ -13,26 +13,28 @@ interface ContentCardProps {
 
 // 카테고리 정보
 const CATEGORIES = {
-  1: { name: '오픈소스', color: '#10b981' },
-  2: { name: '서비스', color: '#3b82f6' },
-  3: { name: '연구', color: '#8b5cf6' },
-  4: { name: '비즈니스', color: '#f59e0b' },
-  5: { name: '기타', color: '#6b7280' }
+  1: { name: "오픈소스", color: "#10b981" },
+  2: { name: "서비스", color: "#3b82f6" },
+  3: { name: "연구", color: "#8b5cf6" },
+  4: { name: "비즈니스", color: "#f59e0b" },
+  5: { name: "기타", color: "#6b7280" },
 };
 
 // 공통 스타일
 const CardContainer = styled.div<{ $isEditing: boolean }>`
   position: relative;
-  background: ${props => props.$isEditing ? '#1e2a1a' : '#1a1a1a'};
+  background: ${(props) => (props.$isEditing ? "#1e2a1a" : "#1a1a1a")};
   border-radius: 12px;
-  border: 1px solid ${props => props.$isEditing ? '#10b981' : '#333'};
+  border: 1px solid ${(props) => (props.$isEditing ? "#10b981" : "#333")};
   overflow: hidden;
   transition: all 0.3s ease;
-  
+  display: flex;
+  flex-direction: column;
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    border-color: ${props => props.$isEditing ? '#10b981' : '#555'};
+    border-color: ${(props) => (props.$isEditing ? "#10b981" : "#555")};
   }
 `;
 
@@ -50,48 +52,62 @@ const Checkbox = styled.input`
 `;
 
 const ActionButtons = styled.div`
-  position: absolute;
-  top: 12px;
-  right: 12px;
   display: flex;
   gap: 8px;
-  z-index: 10;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid #333;
+  background: rgba(26, 26, 26, 0.8);
+  margin-top: auto;
 `;
 
-const ActionButton = styled.button<{ $variant: 'approve' | 'reject' | 'edit' | 'save' | 'cancel' }>`
+const ActionButton = styled.button<{
+  $variant: "approve" | "reject" | "edit" | "save" | "cancel";
+}>`
   padding: 6px 12px;
   border-radius: 6px;
   border: none;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  background: ${props => 
-    props.$variant === 'approve' ? '#10b981' : 
-    props.$variant === 'reject' ? '#ef4444' : 
-    props.$variant === 'save' ? '#059669' :
-    props.$variant === 'cancel' ? '#6b7280' : '#3b82f6'};
+  background: ${(props) =>
+    props.$variant === "approve"
+      ? "#10b981"
+      : props.$variant === "reject"
+      ? "#ef4444"
+      : props.$variant === "save"
+      ? "#059669"
+      : props.$variant === "cancel"
+      ? "#6b7280"
+      : "#3b82f6"};
   color: white;
-  
+
   &:hover {
-    background: ${props => 
-      props.$variant === 'approve' ? '#059669' : 
-      props.$variant === 'reject' ? '#dc2626' : 
-      props.$variant === 'save' ? '#047857' :
-      props.$variant === 'cancel' ? '#4b5563' : '#2563eb'};
+    background: ${(props) =>
+      props.$variant === "approve"
+        ? "#059669"
+        : props.$variant === "reject"
+        ? "#dc2626"
+        : props.$variant === "save"
+        ? "#047857"
+        : props.$variant === "cancel"
+        ? "#4b5563"
+        : "#2563eb"};
   }
 `;
 
 // 편집 가능한 필드들
 const EditableField = styled.div<{ $isEditing: boolean }>`
   position: relative;
-  cursor: ${props => props.$isEditing ? 'default' : 'pointer'};
+  cursor: ${(props) => (props.$isEditing ? "default" : "pointer")};
   color: #ffffff;
   font-size: 14px;
   line-height: 1.5;
   min-height: 20px;
-  
+
   &:hover {
-    background: ${props => props.$isEditing ? 'transparent' : 'rgba(16, 185, 129, 0.05)'};
+    background: ${(props) =>
+      props.$isEditing ? "transparent" : "rgba(16, 185, 129, 0.05)"};
     border-radius: 4px;
     transition: background 0.2s ease;
   }
@@ -101,7 +117,7 @@ const EditIcon = styled.span<{ $visible: boolean }>`
   position: absolute;
   top: 4px;
   right: 4px;
-  opacity: ${props => props.$visible ? 1 : 0};
+  opacity: ${(props) => (props.$visible ? 1 : 0)};
   transition: opacity 0.2s ease;
   font-size: 12px;
   color: #10b981;
@@ -116,7 +132,7 @@ const Input = styled.input`
   color: #ffffff;
   font-size: 14px;
   padding: 8px;
-  
+
   &:focus {
     outline: none;
     border-color: #10b981;
@@ -134,7 +150,7 @@ const TextArea = styled.textarea`
   padding: 8px;
   min-height: 60px;
   resize: vertical;
-  
+
   &:focus {
     outline: none;
     border-color: #10b981;
@@ -150,12 +166,12 @@ const Select = styled.select`
   color: #ffffff;
   font-size: 14px;
   padding: 8px;
-  
+
   &:focus {
     outline: none;
     border-color: #10b981;
   }
-  
+
   option {
     background: #2a2a2a;
     color: #ffffff;
@@ -215,11 +231,12 @@ const ArticleTitle = styled.h3`
 const ArticleContent = styled.div`
   padding: 16px;
   padding-top: 50px;
+  flex: 1;
 `;
 
 const CategoryTag = styled.div<{ color: string }>`
   display: inline-block;
-  background-color: ${props => props.color};
+  background-color: ${(props) => props.color};
   color: #ffffff;
   padding: 6px 12px;
   border-radius: 8px;
@@ -270,14 +287,14 @@ const ArrayButton = styled.button`
   color: white;
   font-size: 11px;
   cursor: pointer;
-  
+
   &:hover {
     background: #dc2626;
   }
-  
+
   &.add {
     background: #10b981;
-    
+
     &:hover {
       background: #059669;
     }
@@ -285,9 +302,12 @@ const ArrayButton = styled.button`
 `;
 
 // Twitter 스타일
-const TwitterCard = styled(CardContainer)`
+const TwitterCard = styled(CardContainer)``;
+
+const TwitterContent = styled.div`
   padding: 16px;
   padding-top: 50px;
+  flex: 1;
 `;
 
 const TwitterHeader = styled.div`
@@ -334,7 +354,7 @@ const TwitterIcon = styled.div`
   font-size: 20px;
 `;
 
-const TwitterContent = styled.div`
+const TwitterText = styled.div`
   color: #ffffff;
   font-size: 15px;
   line-height: 1.5;
@@ -370,9 +390,9 @@ const PlayButton = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   &::after {
-    content: '▶';
+    content: "▶";
     color: white;
     font-size: 20px;
     margin-left: 4px;
@@ -382,6 +402,7 @@ const PlayButton = styled.div`
 const YouTubeContent = styled.div`
   padding: 16px;
   padding-top: 50px;
+  flex: 1;
 `;
 
 const YouTubeTitle = styled.h3`
@@ -406,16 +427,18 @@ const VideoInfo = styled.div`
   margin-top: 8px;
 `;
 
-const ContentCard: React.FC<ContentCardProps> = ({ 
-  content, 
-  isSelected, 
-  onSelect, 
-  onApprove, 
+const ContentCard: React.FC<ContentCardProps> = ({
+  content,
+  isSelected,
+  onSelect,
+  onApprove,
   onReject,
-  onSave 
+  onSave,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<ParsedArticle | ParsedTweet | ParsedYouTubeVideo>(content);
+  const [editData, setEditData] = useState<
+    ParsedArticle | ParsedTweet | ParsedYouTubeVideo
+  >(content);
   const [hoveredField, setHoveredField] = useState<string | null>(null);
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -453,66 +476,72 @@ const ContentCard: React.FC<ContentCardProps> = ({
   };
 
   const updateField = (field: string, value: any) => {
-    setEditData(prev => ({
+    setEditData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
-  const updateNestedField = (parentField: string, childField: string, value: any) => {
-    setEditData(prev => ({
+  const updateNestedField = (
+    parentField: string,
+    childField: string,
+    value: any
+  ) => {
+    setEditData((prev) => ({
       ...prev,
       [parentField]: {
         ...(prev as any)[parentField],
-        [childField]: value
-      }
+        [childField]: value,
+      },
     }));
   };
 
   const updateArrayField = (field: string, index: number, value: string) => {
-    setEditData(prev => ({
+    setEditData((prev) => ({
       ...prev,
-      [field]: (prev as any)[field].map((item: string, i: number) => i === index ? value : item)
+      [field]: (prev as any)[field].map((item: string, i: number) =>
+        i === index ? value : item
+      ),
     }));
   };
 
   const addArrayItem = (field: string) => {
-    setEditData(prev => ({
+    setEditData((prev) => ({
       ...prev,
-      [field]: [...(prev as any)[field], '']
+      [field]: [...(prev as any)[field], ""],
     }));
   };
 
   const removeArrayItem = (field: string, index: number) => {
-    setEditData(prev => ({
+    setEditData((prev) => ({
       ...prev,
-      [field]: (prev as any)[field].filter((_: any, i: number) => i !== index)
+      [field]: (prev as any)[field].filter((_: any, i: number) => i !== index),
     }));
   };
 
   const formatDate = (date: Date | undefined) => {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    if (!date) return "";
+    return new Date(date).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   const formatViewCount = (count: number | undefined) => {
-    if (!count) return '알 수 없음';
+    if (!count) return "알 수 없음";
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
     return count.toString();
   };
 
   const formatPublishedAt = (date: Date | undefined) => {
-    if (!date) return '';
+    if (!date) return "";
     const now = new Date();
     const diff = now.getTime() - new Date(date).getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return '오늘';
-    if (days === 1) return '1일 전';
+    if (days === 0) return "오늘";
+    if (days === 1) return "1일 전";
     if (days < 30) return `${days}일 전`;
     if (days < 365) return `${Math.floor(days / 30)}개월 전`;
     return `${Math.floor(days / 365)}년 전`;
@@ -563,7 +592,7 @@ const ContentCard: React.FC<ContentCardProps> = ({
   };
 
   // Article 렌더링
-  if (content.type === 'article') {
+  if (content.type === "article") {
     const article = editData as ParsedArticle;
     const categoryInfo = getCategoryInfo(article.category);
 
@@ -577,31 +606,6 @@ const ContentCard: React.FC<ContentCardProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         </CheckboxContainer>
-        
-        <ActionButtons>
-          {isEditing ? (
-            <>
-              <ActionButton $variant="save" onClick={handleSave}>
-                저장
-              </ActionButton>
-              <ActionButton $variant="cancel" onClick={handleCancel}>
-                취소
-              </ActionButton>
-            </>
-          ) : (
-            <>
-              <ActionButton $variant="edit" onClick={handleEdit}>
-                편집
-              </ActionButton>
-              <ActionButton $variant="approve" onClick={handleApprove}>
-                승인
-              </ActionButton>
-              <ActionButton $variant="reject" onClick={handleReject}>
-                삭제
-              </ActionButton>
-            </>
-          )}
-        </ActionButtons>
 
         <ArticleImageContainer>
           {article.imageUrls && article.imageUrls.length > 0 ? (
@@ -610,21 +614,21 @@ const ContentCard: React.FC<ContentCardProps> = ({
               alt={article.titleSummary}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
+                target.style.display = "none";
               }}
             />
           ) : (
             <ArticleImagePlaceholder>📰</ArticleImagePlaceholder>
           )}
-          
+
           <ArticleTitleOverlay>
             <ArticleTitle>
               {isEditing ? (
                 <Input
                   value={article.titleSummary}
-                  onChange={(e) => updateField('titleSummary', e.target.value)}
+                  onChange={(e) => updateField("titleSummary", e.target.value)}
                   placeholder="기사 제목"
-                  style={{ background: 'rgba(42, 42, 42, 0.9)' }}
+                  style={{ background: "rgba(42, 42, 42, 0.9)" }}
                 />
               ) : (
                 article.titleSummary
@@ -639,10 +643,14 @@ const ContentCard: React.FC<ContentCardProps> = ({
             {isEditing ? (
               <Select
                 value={article.category || 5}
-                onChange={(e) => updateField('category', parseInt(e.target.value))}
+                onChange={(e) =>
+                  updateField("category", parseInt(e.target.value))
+                }
               >
                 {Object.entries(CATEGORIES).map(([key, value]) => (
-                  <option key={key} value={key}>{value.name}</option>
+                  <option key={key} value={key}>
+                    {value.name}
+                  </option>
                 ))}
               </Select>
             ) : (
@@ -654,12 +662,12 @@ const ContentCard: React.FC<ContentCardProps> = ({
 
           <FieldContainer>
             <FieldLabel>URL</FieldLabel>
-            {renderEditableField('url', article.url, '기사 URL을 입력하세요')}
+            {renderEditableField("url", article.url, "기사 URL을 입력하세요")}
           </FieldContainer>
 
           <FieldContainer>
             <FieldLabel>발행일</FieldLabel>
-            <div style={{ color: '#888', fontSize: '14px' }}>
+            <div style={{ color: "#888", fontSize: "14px" }}>
               {formatDate(article.publishedAt)}
             </div>
           </FieldContainer>
@@ -672,22 +680,29 @@ const ContentCard: React.FC<ContentCardProps> = ({
                   <ArrayItem key={index}>
                     <TextArea
                       value={url}
-                      onChange={(e) => updateArrayField('imageUrls', index, e.target.value)}
+                      onChange={(e) =>
+                        updateArrayField("imageUrls", index, e.target.value)
+                      }
                       placeholder="이미지 URL"
                       rows={1}
-                      style={{ minHeight: '40px' }}
+                      style={{ minHeight: "40px" }}
                     />
-                    <ArrayButton onClick={() => removeArrayItem('imageUrls', index)}>
+                    <ArrayButton
+                      onClick={() => removeArrayItem("imageUrls", index)}
+                    >
                       삭제
                     </ArrayButton>
                   </ArrayItem>
                 ))}
-                <ArrayButton className="add" onClick={() => addArrayItem('imageUrls')}>
+                <ArrayButton
+                  className="add"
+                  onClick={() => addArrayItem("imageUrls")}
+                >
                   이미지 추가
                 </ArrayButton>
               </ArrayFieldContainer>
             ) : (
-              <div style={{ color: '#888', fontSize: '14px' }}>
+              <div style={{ color: "#888", fontSize: "14px" }}>
                 {article.imageUrls.length}개의 이미지
               </div>
             )}
@@ -698,45 +713,91 @@ const ContentCard: React.FC<ContentCardProps> = ({
             {isEditing ? (
               <ArrayFieldContainer>
                 {article.summaryLines.map((line: string, index: number) => (
-                  <div key={index} style={{ marginBottom: '16px', border: '1px solid #333', borderRadius: '6px', background: '#1e1e1e' }}>
+                  <div
+                    key={index}
+                    style={{
+                      marginBottom: "16px",
+                      border: "1px solid #333",
+                      borderRadius: "6px",
+                      background: "#1e1e1e",
+                    }}
+                  >
                     <ArrayItem>
                       <TextArea
                         value={line}
-                        onChange={(e) => updateArrayField('summaryLines', index, e.target.value)}
+                        onChange={(e) =>
+                          updateArrayField(
+                            "summaryLines",
+                            index,
+                            e.target.value
+                          )
+                        }
                         placeholder="요약 내용"
                         rows={2}
-                        style={{ marginBottom: '8px' }}
+                        style={{ marginBottom: "8px" }}
                       />
-                      <ArrayButton onClick={() => removeArrayItem('summaryLines', index)}>
+                      <ArrayButton
+                        onClick={() => removeArrayItem("summaryLines", index)}
+                      >
                         삭제
                       </ArrayButton>
                     </ArrayItem>
-                    <div style={{ padding: '0 8px 8px 8px' }}>
+                    <div style={{ padding: "0 8px 8px 8px" }}>
                       <TextArea
-                        value={article.details[index] || ''}
-                        onChange={(e) => updateArrayField('details', index, e.target.value)}
+                        value={article.details[index] || ""}
+                        onChange={(e) =>
+                          updateArrayField("details", index, e.target.value)
+                        }
                         placeholder="상세 설명"
                         rows={3}
                       />
                     </div>
                   </div>
                 ))}
-                <ArrayButton className="add" onClick={() => {
-                  addArrayItem('summaryLines');
-                  addArrayItem('details');
-                }}>
+                <ArrayButton
+                  className="add"
+                  onClick={() => {
+                    addArrayItem("summaryLines");
+                    addArrayItem("details");
+                  }}
+                >
                   요약 항목 추가
                 </ArrayButton>
               </ArrayFieldContainer>
             ) : (
-              <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>
+              <div
+                style={{ color: "#fff", fontSize: "14px", lineHeight: "1.5" }}
+              >
                 {article.summaryLines.map((line, index) => (
-                  <div key={index} style={{ marginBottom: '16px', padding: '12px', background: '#1e1e1e', borderRadius: '6px', border: '1px solid #333' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '8px', color: '#10b981' }}>
+                  <div
+                    key={index}
+                    style={{
+                      marginBottom: "16px",
+                      padding: "12px",
+                      background: "#1e1e1e",
+                      borderRadius: "6px",
+                      border: "1px solid #333",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        marginBottom: "8px",
+                        color: "#10b981",
+                      }}
+                    >
                       {line}
                     </div>
                     {article.details[index] && (
-                      <div style={{ color: '#e0e0e0', fontSize: '13px', lineHeight: '1.6', paddingLeft: '12px', borderLeft: '3px solid #10b981' }}>
+                      <div
+                        style={{
+                          color: "#e0e0e0",
+                          fontSize: "13px",
+                          lineHeight: "1.6",
+                          paddingLeft: "12px",
+                          borderLeft: "3px solid #10b981",
+                        }}
+                      >
                         {article.details[index]}
                       </div>
                     )}
@@ -746,12 +807,37 @@ const ContentCard: React.FC<ContentCardProps> = ({
             )}
           </FieldContainer>
         </ArticleContent>
+
+        <ActionButtons>
+          {isEditing ? (
+            <>
+              <ActionButton $variant="save" onClick={handleSave}>
+                저장
+              </ActionButton>
+              <ActionButton $variant="cancel" onClick={handleCancel}>
+                취소
+              </ActionButton>
+            </>
+          ) : (
+            <>
+              <ActionButton $variant="edit" onClick={handleEdit}>
+                편집
+              </ActionButton>
+              <ActionButton $variant="approve" onClick={handleApprove}>
+                승인
+              </ActionButton>
+              <ActionButton $variant="reject" onClick={handleReject}>
+                삭제
+              </ActionButton>
+            </>
+          )}
+        </ActionButtons>
       </ArticleCard>
     );
   }
 
   // Tweet 렌더링
-  if (content.type === 'tweet') {
+  if (content.type === "tweet") {
     const tweet = editData as ParsedTweet;
     const categoryInfo = getCategoryInfo(tweet.category);
 
@@ -765,7 +851,117 @@ const ContentCard: React.FC<ContentCardProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         </CheckboxContainer>
-        
+
+        <TwitterContent>
+          <TwitterHeader>
+            {tweet.author.profileImageUrl ? (
+              <ProfileImage
+                src={tweet.author.profileImageUrl}
+                alt={tweet.author.name}
+              />
+            ) : (
+              <ProfileImagePlaceholder>👤</ProfileImagePlaceholder>
+            )}
+            <AuthorInfo>
+              <AuthorName>
+                {isEditing ? (
+                  <Input
+                    value={tweet.author.name}
+                    onChange={(e) =>
+                      updateNestedField("author", "name", e.target.value)
+                    }
+                    placeholder="작성자 이름"
+                  />
+                ) : (
+                  tweet.author.name
+                )}
+              </AuthorName>
+              <AuthorUsername>
+                {isEditing ? (
+                  <Input
+                    value={`@${tweet.author.username}`}
+                    onChange={(e) =>
+                      updateNestedField(
+                        "author",
+                        "username",
+                        e.target.value.replace("@", "")
+                      )
+                    }
+                    placeholder="@사용자명"
+                  />
+                ) : (
+                  `@${tweet.author.username}`
+                )}
+              </AuthorUsername>
+            </AuthorInfo>
+            <TwitterIcon>🐦</TwitterIcon>
+          </TwitterHeader>
+
+          <FieldContainer>
+            <FieldLabel>원문</FieldLabel>
+            {renderEditableField(
+              "text",
+              tweet.text,
+              "트위터 원문을 입력하세요",
+              true
+            )}
+          </FieldContainer>
+
+          <FieldContainer>
+            <FieldLabel>번역문</FieldLabel>
+            {renderEditableField(
+              "textKo",
+              tweet.textKo || "",
+              "한국어 번역을 입력하세요",
+              true
+            )}
+          </FieldContainer>
+
+          <FieldContainer>
+            <FieldLabel>프로필 이미지 URL</FieldLabel>
+            {isEditing ? (
+              <Input
+                value={tweet.author.profileImageUrl || ""}
+                onChange={(e) =>
+                  updateNestedField("author", "profileImageUrl", e.target.value)
+                }
+                placeholder="프로필 이미지 URL"
+              />
+            ) : (
+              <div style={{ color: "#888", fontSize: "14px" }}>
+                {tweet.author.profileImageUrl || "없음"}
+              </div>
+            )}
+          </FieldContainer>
+
+          <FieldContainer>
+            <FieldLabel>URL</FieldLabel>
+            {renderEditableField("url", tweet.url, "트위터 URL을 입력하세요")}
+          </FieldContainer>
+
+          <FieldContainer>
+            <FieldLabel>카테고리</FieldLabel>
+            {isEditing ? (
+              <Select
+                value={tweet.category || 5}
+                onChange={(e) =>
+                  updateField("category", parseInt(e.target.value))
+                }
+              >
+                {Object.entries(CATEGORIES).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value.name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <CategoryTag color={categoryInfo.color}>
+                {categoryInfo.name}
+              </CategoryTag>
+            )}
+          </FieldContainer>
+        </TwitterContent>
+
         <ActionButtons>
           {isEditing ? (
             <>
@@ -790,93 +986,12 @@ const ContentCard: React.FC<ContentCardProps> = ({
             </>
           )}
         </ActionButtons>
-
-        <TwitterHeader>
-          {tweet.author.profileImageUrl ? (
-            <ProfileImage src={tweet.author.profileImageUrl} alt={tweet.author.name} />
-          ) : (
-            <ProfileImagePlaceholder>👤</ProfileImagePlaceholder>
-          )}
-          <AuthorInfo>
-            <AuthorName>
-              {isEditing ? (
-                <Input
-                  value={tweet.author.name}
-                  onChange={(e) => updateNestedField('author', 'name', e.target.value)}
-                  placeholder="작성자 이름"
-                />
-              ) : (
-                tweet.author.name
-              )}
-            </AuthorName>
-            <AuthorUsername>
-              {isEditing ? (
-                <Input
-                  value={`@${tweet.author.username}`}
-                  onChange={(e) => updateNestedField('author', 'username', e.target.value.replace('@', ''))}
-                  placeholder="@사용자명"
-                />
-              ) : (
-                `@${tweet.author.username}`
-              )}
-            </AuthorUsername>
-          </AuthorInfo>
-          <TwitterIcon>🐦</TwitterIcon>
-        </TwitterHeader>
-
-        <FieldContainer>
-          <FieldLabel>원문</FieldLabel>
-          {renderEditableField('text', tweet.text, '트위터 원문을 입력하세요', true)}
-        </FieldContainer>
-
-        <FieldContainer>
-          <FieldLabel>번역문</FieldLabel>
-          {renderEditableField('textKo', tweet.textKo || '', '한국어 번역을 입력하세요', true)}
-        </FieldContainer>
-
-        <FieldContainer>
-          <FieldLabel>프로필 이미지 URL</FieldLabel>
-          {isEditing ? (
-            <Input
-              value={tweet.author.profileImageUrl || ''}
-              onChange={(e) => updateNestedField('author', 'profileImageUrl', e.target.value)}
-              placeholder="프로필 이미지 URL"
-            />
-          ) : (
-            <div style={{ color: '#888', fontSize: '14px' }}>
-              {tweet.author.profileImageUrl || '없음'}
-            </div>
-          )}
-        </FieldContainer>
-
-        <FieldContainer>
-          <FieldLabel>URL</FieldLabel>
-          {renderEditableField('url', tweet.url, '트위터 URL을 입력하세요')}
-        </FieldContainer>
-
-        <FieldContainer>
-          <FieldLabel>카테고리</FieldLabel>
-          {isEditing ? (
-            <Select
-              value={tweet.category || 5}
-              onChange={(e) => updateField('category', parseInt(e.target.value))}
-            >
-              {Object.entries(CATEGORIES).map(([key, value]) => (
-                <option key={key} value={key}>{value.name}</option>
-              ))}
-            </Select>
-          ) : (
-            <CategoryTag color={categoryInfo.color}>
-              {categoryInfo.name}
-            </CategoryTag>
-          )}
-        </FieldContainer>
       </TwitterCard>
     );
   }
 
   // YouTube 렌더링
-  if (content.type === 'youtube') {
+  if (content.type === "youtube") {
     const video = editData as ParsedYouTubeVideo;
     const categoryInfo = getCategoryInfo(video.category);
 
@@ -890,31 +1005,6 @@ const ContentCard: React.FC<ContentCardProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         </CheckboxContainer>
-        
-        <ActionButtons>
-          {isEditing ? (
-            <>
-              <ActionButton $variant="save" onClick={handleSave}>
-                저장
-              </ActionButton>
-              <ActionButton $variant="cancel" onClick={handleCancel}>
-                취소
-              </ActionButton>
-            </>
-          ) : (
-            <>
-              <ActionButton $variant="edit" onClick={handleEdit}>
-                편집
-              </ActionButton>
-              <ActionButton $variant="approve" onClick={handleApprove}>
-                승인
-              </ActionButton>
-              <ActionButton $variant="reject" onClick={handleReject}>
-                삭제
-              </ActionButton>
-            </>
-          )}
-        </ActionButtons>
 
         <YouTubeThumbnailContainer>
           <YouTubeThumbnail src={video.thumbnailUrl} alt={video.title} />
@@ -924,22 +1014,38 @@ const ContentCard: React.FC<ContentCardProps> = ({
         <YouTubeContent>
           <FieldContainer>
             <FieldLabel>제목</FieldLabel>
-            {renderEditableField('title', video.title, '영상 제목을 입력하세요')}
+            {renderEditableField(
+              "title",
+              video.title,
+              "영상 제목을 입력하세요"
+            )}
           </FieldContainer>
 
           <FieldContainer>
             <FieldLabel>채널명</FieldLabel>
-            {renderEditableField('channelName', video.channelName, '채널명을 입력하세요')}
+            {renderEditableField(
+              "channelName",
+              video.channelName,
+              "채널명을 입력하세요"
+            )}
           </FieldContainer>
 
           <FieldContainer>
             <FieldLabel>썸네일 URL</FieldLabel>
-            {renderEditableField('thumbnailUrl', video.thumbnailUrl, '썸네일 URL을 입력하세요')}
+            {renderEditableField(
+              "thumbnailUrl",
+              video.thumbnailUrl,
+              "썸네일 URL을 입력하세요"
+            )}
           </FieldContainer>
 
           <FieldContainer>
             <FieldLabel>재생 시간</FieldLabel>
-            {renderEditableField('duration', video.duration || '', '재생 시간 (예: 10:30)')}
+            {renderEditableField(
+              "duration",
+              video.duration || "",
+              "재생 시간 (예: 10:30)"
+            )}
           </FieldContainer>
 
           <FieldContainer>
@@ -947,12 +1053,17 @@ const ContentCard: React.FC<ContentCardProps> = ({
             {isEditing ? (
               <Input
                 type="number"
-                value={video.viewCount || ''}
-                onChange={(e) => updateField('viewCount', e.target.value ? parseInt(e.target.value) : undefined)}
+                value={video.viewCount || ""}
+                onChange={(e) =>
+                  updateField(
+                    "viewCount",
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )
+                }
                 placeholder="조회수"
               />
             ) : (
-              <div style={{ color: '#888', fontSize: '14px' }}>
+              <div style={{ color: "#888", fontSize: "14px" }}>
                 {formatViewCount(video.viewCount)}
               </div>
             )}
@@ -963,10 +1074,14 @@ const ContentCard: React.FC<ContentCardProps> = ({
             {isEditing ? (
               <Select
                 value={video.category || 5}
-                onChange={(e) => updateField('category', parseInt(e.target.value))}
+                onChange={(e) =>
+                  updateField("category", parseInt(e.target.value))
+                }
               >
                 {Object.entries(CATEGORIES).map(([key, value]) => (
-                  <option key={key} value={key}>{value.name}</option>
+                  <option key={key} value={key}>
+                    {value.name}
+                  </option>
                 ))}
               </Select>
             ) : (
@@ -982,6 +1097,31 @@ const ContentCard: React.FC<ContentCardProps> = ({
             <span>{formatPublishedAt(video.publishedAt)}</span>
           </VideoInfo>
         </YouTubeContent>
+
+        <ActionButtons>
+          {isEditing ? (
+            <>
+              <ActionButton $variant="save" onClick={handleSave}>
+                저장
+              </ActionButton>
+              <ActionButton $variant="cancel" onClick={handleCancel}>
+                취소
+              </ActionButton>
+            </>
+          ) : (
+            <>
+              <ActionButton $variant="edit" onClick={handleEdit}>
+                편집
+              </ActionButton>
+              <ActionButton $variant="approve" onClick={handleApprove}>
+                승인
+              </ActionButton>
+              <ActionButton $variant="reject" onClick={handleReject}>
+                삭제
+              </ActionButton>
+            </>
+          )}
+        </ActionButtons>
       </YouTubeCard>
     );
   }
@@ -989,4 +1129,4 @@ const ContentCard: React.FC<ContentCardProps> = ({
   return null;
 };
 
-export default ContentCard; 
+export default ContentCard;

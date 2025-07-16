@@ -8,15 +8,24 @@ import React, {
 import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import styled from "styled-components";
-import { Article, Tweet, YouTubeVideo, CATEGORIES } from "../types";
+import {
+  Article,
+  Tweet,
+  YouTubeVideo,
+  CATEGORIES,
+  FeedbackSubmission,
+} from "../types";
 import { useReadArticles } from "../hooks/useReadArticles";
 import { useAllDataQuery } from "../hooks/useArticlesQuery";
+import { userService } from "../services/userService";
 
 import Header from "../components/Header";
 import CategoryTags from "../components/CategoryTags";
 import ArticleCard from "../components/ArticleCard";
 import TwitterCard from "../components/TwitterCard";
 import YouTubeCard from "../components/YouTubeCard";
+import FeedbackButton from "../components/FeedbackButton";
+import FeedbackModal from "../components/FeedbackModal";
 
 const MainContainer = styled.div`
   height: 100vh;
@@ -75,7 +84,7 @@ const TimelineLeft = styled.div`
 const TimelineDot = styled.div`
   width: 8px;
   height: 8px;
-  background-color: #1da1f2;
+  background-color: #4ade80;
   border-radius: 50%;
   margin-right: 12px;
   margin-top: 6px;
@@ -83,15 +92,15 @@ const TimelineDot = styled.div`
   box-shadow: 0 0 0 3px #0a0a0a;
 
   &.article {
-    background-color: #ff6b6b;
+    background-color: #4ade80;
   }
 
   &.tweet {
-    background-color: #1da1f2;
+    background-color: #4ade80;
   }
 
   &.youtube {
-    background-color: #ff0000;
+    background-color: #4ade80;
   }
 `;
 
@@ -173,10 +182,12 @@ type DateGroup = {
 
 const MainPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { readArticleIds, refreshReadArticles } = useReadArticles();
+  const { readArticleIds, refreshReadArticles, markAsClicked, isArticleRead } =
+    useReadArticles();
 
   // React Query로 데이터 가져오기 (자동 캐싱!)
   const { articles, tweets, youtubeVideos, isLoading, error, isError } =
@@ -187,6 +198,51 @@ const MainPage: React.FC = () => {
 
   // bottomSheet ref 추가
   const bottomSheetRef = useRef<HTMLDivElement>(null);
+
+  // 페이지가 포커스를 받을 때마다 읽은 기사 목록 새로고침
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log(
+        "페이지가 포커스를 받았습니다. 읽은 기사 목록을 새로고침합니다."
+      );
+      refreshReadArticles();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log(
+          "페이지가 다시 보이게 되었습니다. 읽은 기사 목록을 새로고침합니다."
+        );
+        refreshReadArticles();
+      }
+    };
+
+    const handlePopState = () => {
+      console.log(
+        "브라우저 뒤로가기/앞으로가기가 감지되었습니다. 읽은 기사 목록을 새로고침합니다."
+      );
+      refreshReadArticles();
+    };
+
+    // 윈도우 포커스 이벤트
+    window.addEventListener("focus", handleFocus);
+    // 페이지 가시성 변경 이벤트
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // 브라우저 뒤로가기/앞으로가기 이벤트
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [refreshReadArticles]);
+
+  // location이 변경될 때마다 읽은 기사 목록 새로고침 (ArticlePage에서 돌아올 때)
+  useEffect(() => {
+    console.log("Location이 변경되었습니다. 읽은 기사 목록을 새로고침합니다.");
+    refreshReadArticles();
+  }, [location.pathname, refreshReadArticles]);
 
   // filteredArticles를 useMemo로 직접 계산
   const filteredArticles = useMemo(() => {
@@ -240,6 +296,9 @@ const MainPage: React.FC = () => {
   };
 
   const handleArticleClick = (article: Article) => {
+    // 클릭 즉시 어둡게 표시
+    markAsClicked(article.id!);
+
     // 현재 스크롤 위치를 sessionStorage에 저장
     const currentScrollPosition = bottomSheetRef.current?.scrollTop || 0;
     sessionStorage.setItem(
@@ -259,6 +318,16 @@ const MainPage: React.FC = () => {
 
   const handleTweetClick = (tweet: Tweet) => {
     window.open(tweet.url, "_blank");
+  };
+
+  const handleFeedbackSubmit = async (feedback: FeedbackSubmission) => {
+    try {
+      await userService.submitFeedback(feedback);
+      console.log("피드백이 성공적으로 제출되었습니다:", feedback);
+    } catch (error) {
+      console.error("피드백 제출 중 오류:", error);
+      throw error; // 모달에서 에러 처리를 위해 다시 throw
+    }
   };
 
   // 기사, 트위터, 유튜브를 시간순으로 정렬하여 통합 (메모이제이션)
@@ -457,7 +526,7 @@ const MainPage: React.FC = () => {
                               onClick={() =>
                                 handleArticleClick(item.data as Article)
                               }
-                              isRead={readArticleIds.includes(
+                              isRead={isArticleRead(
                                 (item.data as Article).id || ""
                               )}
                             />
@@ -481,6 +550,20 @@ const MainPage: React.FC = () => {
           })}
         </Timeline>
       </Content>
+
+      {/* 피드백 버튼 */}
+      <FeedbackButton
+        onFeedbackClick={() => setIsFeedbackModalOpen(true)}
+        readArticleCount={readArticleIds.length}
+        minimumReads={10} // 테스트용: 항상 표시
+      />
+
+      {/* 피드백 모달 */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        onSubmit={handleFeedbackSubmit}
+      />
     </MainContainer>
   );
 };

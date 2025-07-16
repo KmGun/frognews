@@ -73,11 +73,11 @@ export interface UserReadArticle {
 
 // 카테고리 매핑
 export const CATEGORIES = {
-  1: { name: '오픈소스', color: '#10b981' },
-  2: { name: '서비스', color: '#3b82f6' },
-  3: { name: '연구', color: '#8b5cf6' },
-  4: { name: '비즈니스/산업', color: '#f59e0b' },
-  5: { name: '기타', color: '#6b7280' }
+  1: { name: "오픈소스", color: "#10b981" },
+  2: { name: "서비스", color: "#3b82f6" },
+  3: { name: "연구", color: "#8b5cf6" },
+  4: { name: "비즈니스/산업", color: "#f59e0b" },
+  5: { name: "기타", color: "#6b7280" },
 } as const;
 
 // API 응답 타입
@@ -118,13 +118,13 @@ export interface PaginationOptions {
 
 // 로컬 스토리지 키
 export const LOCAL_STORAGE_KEYS = {
-  THEME: 'frognews-theme',
-  FAVORITES: 'frognews-favorites',
-  RECENT_ARTICLES: 'frognews-recent-articles'
+  THEME: "frognews-theme",
+  FAVORITES: "frognews-favorites",
+  RECENT_ARTICLES: "frognews-recent-articles",
 } as const;
 
 // 테마 타입
-export type Theme = 'light' | 'dark';
+export type Theme = "light" | "dark";
 
 // 컴포넌트 Props 타입들
 export interface ArticleCardProps {
@@ -148,4 +148,20 @@ export interface SummaryLineProps {
   detail: string;
   expanded?: boolean;
   onToggle?: () => void;
-} 
+}
+
+// 사용자 피드백 타입
+export interface UserFeedback {
+  id?: string;
+  userId: string;
+  score: number; // 1-10점
+  feedbackText?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// 피드백 제출 데이터 타입
+export interface FeedbackSubmission {
+  score: number;
+  feedbackText: string;
+}
