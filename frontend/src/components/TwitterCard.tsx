@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Tweet } from '../types';
+import React, { useState } from "react";
+import styled from "styled-components";
+import { Tweet } from "../types";
+import TwitterVideoEmbed from "./TwitterVideoEmbed";
+import TwitterMediaGallery from "./TwitterMediaGallery";
 
 const Card = styled.div<{ $hasExpandButton: boolean }>`
   background-color: #1a1a1a;
@@ -10,11 +12,13 @@ const Card = styled.div<{ $hasExpandButton: boolean }>`
   transition: all 0.3s ease;
   border: 1px solid #333;
   position: relative;
-  
-  ${props => props.$hasExpandButton && `
+
+  ${(props) =>
+    props.$hasExpandButton &&
+    `
     padding-bottom: 70px; /* 하단 버튼을 위한 공간 더 확보 */
   `}
-  
+
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -83,8 +87,10 @@ const Content = styled.div<{ $isExpanded: boolean }>`
   white-space: pre-wrap;
   word-break: break-word;
   position: relative;
-  
-  ${props => !props.$isExpanded && `
+
+  ${(props) =>
+    !props.$isExpanded &&
+    `
     max-height: 9.6em; /* 약 6줄 정도로 증가 */
     overflow: hidden;
     
@@ -99,12 +105,14 @@ const Content = styled.div<{ $isExpanded: boolean }>`
       pointer-events: none;
     }
   `}
-  
+
   @media (max-width: 768px) {
     font-size: 15px;
     line-height: 1.5;
-    
-    ${props => !props.$isExpanded && `
+
+    ${(props) =>
+      !props.$isExpanded &&
+      `
       max-height: 9em; /* 모바일에서 약 6줄 */
       
       &::after {
@@ -134,35 +142,35 @@ const ExpandButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 6px;
-  
+
   &:hover {
     background: linear-gradient(135deg, #333333, #2a2a2a);
     color: #ffffff;
     border-top-color: #444;
     transform: translateY(-1px);
   }
-  
+
   &:active {
     transform: translateY(0);
   }
-  
+
   /* 펼치기/접기 아이콘 */
   &::after {
-    content: '▼';
+    content: "▼";
     font-size: 10px;
     transition: transform 0.3s ease;
     opacity: 0.8;
   }
-  
+
   &.expanded::after {
     transform: rotate(180deg);
-    content: '▲';
+    content: "▲";
   }
-  
+
   &:hover::after {
     opacity: 1;
   }
-  
+
   @media (max-width: 768px) {
     font-size: 12px;
     padding: 10px 16px;
@@ -172,7 +180,7 @@ const ExpandButton = styled.button`
 const Link = styled.a`
   color: #1da1f2;
   text-decoration: none;
-  
+
   &:hover {
     text-decoration: underline;
   }
@@ -182,7 +190,7 @@ const Mention = styled.a`
   color: #1da1f2;
   text-decoration: none;
   font-weight: 500;
-  
+
   &:hover {
     text-decoration: underline;
   }
@@ -198,7 +206,7 @@ const ToggleButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   margin-left: auto;
-  
+
   &:hover {
     background-color: #1da1f2;
     color: #ffffff;
@@ -214,8 +222,10 @@ const Footer = styled.div<{ $isExpanded: boolean }>`
   position: relative;
   z-index: 2; /* ExpandButton보다 위에 표시 */
   background-color: #1a1a1a; /* 배경색 명시하여 겹침 방지 */
-  
-  ${props => props.$isExpanded && `
+
+  ${(props) =>
+    props.$isExpanded &&
+    `
     margin-bottom: 8px; /* 펼쳤을 때 하단 여백 추가 */
   `}
 `;
@@ -235,17 +245,17 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('ko-KR', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Intl.DateTimeFormat("ko-KR", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   // 텍스트가 긴지 확인하는 함수 (기준 완화)
   const isLongText = (text: string): boolean => {
-    const lines = text.split('\n');
+    const lines = text.split("\n");
     return lines.length > 6 || text.length > 350; // 6줄 이상이거나 350자 이상으로 변경
   };
 
@@ -256,47 +266,49 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
     let keyCounter = 0;
 
     // URL 패턴 개선 - 단어 경계와 공백/줄바꿈으로 끝나는 것만 매치
-    const urlRegex = /(https?:\/\/[^\s\u3131-\u3163\uac00-\ud7a3]+|www\.[^\s\u3131-\u3163\uac00-\ud7a3]+)/g;
+    const urlRegex =
+      /(https?:\/\/[^\s\u3131-\u3163\uac00-\ud7a3]+|www\.[^\s\u3131-\u3163\uac00-\ud7a3]+)/g;
     // 멘션 패턴 개선 - URL이 아닌 경우에만 매치 (@ 앞에 :// 가 없는 경우)
     const mentionRegex = /(?<!:\/\/)@([a-zA-Z0-9_]+)(?![^\s]*\.[a-zA-Z])/g;
-    
+
     // 모든 매치를 찾아서 위치별로 정렬
     const matches: Array<{
       index: number;
       length: number;
-      type: 'url' | 'mention';
+      type: "url" | "mention";
       content: string;
       username?: string;
     }> = [];
 
     let match: RegExpExecArray | null;
-    
+
     // URL 매치 찾기
     while ((match = urlRegex.exec(text)) !== null) {
       matches.push({
         index: match.index,
         length: match[0].length,
-        type: 'url',
-        content: match[0]
+        type: "url",
+        content: match[0],
       });
     }
 
     // 멘션 매치 찾기 (URL과 겹치지 않는 것만)
     while ((match = mentionRegex.exec(text)) !== null) {
       // URL 내부에 있는 @ 인지 확인
-      const isInsideUrl = matches.some(urlMatch => 
-        urlMatch.type === 'url' && 
-        match!.index >= urlMatch.index && 
-        match!.index < urlMatch.index + urlMatch.length
+      const isInsideUrl = matches.some(
+        (urlMatch) =>
+          urlMatch.type === "url" &&
+          match!.index >= urlMatch.index &&
+          match!.index < urlMatch.index + urlMatch.length
       );
-      
+
       if (!isInsideUrl) {
         matches.push({
           index: match.index,
           length: match[0].length,
-          type: 'mention',
+          type: "mention",
           content: match[0],
-          username: match[1]
+          username: match[1],
         });
       }
     }
@@ -319,10 +331,14 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
       }
 
       // 링크 또는 멘션 추가
-      if (match.type === 'url') {
-        const url = match.content.startsWith('http') ? match.content : `https://${match.content}`;
-        const displayText = match.content.replace(/^https?:\/\//, '').replace(/^www\./, '');
-        
+      if (match.type === "url") {
+        const url = match.content.startsWith("http")
+          ? match.content
+          : `https://${match.content}`;
+        const displayText = match.content
+          .replace(/^https?:\/\//, "")
+          .replace(/^www\./, "");
+
         parts.push(
           <Link
             key={`url-${keyCounter++}`}
@@ -334,7 +350,7 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
             {displayText}
           </Link>
         );
-      } else if (match.type === 'mention') {
+      } else if (match.type === "mention") {
         parts.push(
           <Mention
             key={`mention-${keyCounter++}`}
@@ -361,14 +377,17 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
 
   const handleClick = (e: React.MouseEvent) => {
     // 토글 버튼이나 링크, 확장 버튼 클릭 시 카드 클릭 이벤트 방지
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) {
+    if (
+      (e.target as HTMLElement).closest("button") ||
+      (e.target as HTMLElement).closest("a")
+    ) {
       return;
     }
-    
+
     if (onClick) {
       onClick();
     } else {
-      window.open(tweet.url, '_blank');
+      window.open(tweet.url, "_blank");
     }
   };
 
@@ -382,11 +401,17 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
     setIsExpanded(!isExpanded);
   };
 
-  const displayText = tweet.isTranslated && tweet.textKo && !showOriginal ? tweet.textKo : tweet.text;
+  const displayText =
+    tweet.isTranslated && tweet.textKo && !showOriginal
+      ? tweet.textKo
+      : tweet.text;
   const shouldShowExpandButton = isLongText(displayText);
 
   return (
-    <Card onClick={handleClick} $hasExpandButton={shouldShowExpandButton && !isExpanded}>
+    <Card
+      onClick={handleClick}
+      $hasExpandButton={shouldShowExpandButton && !isExpanded}
+    >
       <Header>
         {tweet.author.profileImageUrl ? (
           <ProfileImage
@@ -394,7 +419,7 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
             alt={tweet.author.name}
             onError={(e) => {
               const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
+              target.style.display = "none";
             }}
           />
         ) : (
@@ -406,32 +431,40 @@ const TwitterCard: React.FC<TwitterCardProps> = ({ tweet, onClick }) => {
         </AuthorInfo>
         <TwitterIcon>𝕏</TwitterIcon>
       </Header>
-      
+
       <ContentContainer>
         <Content $isExpanded={isExpanded || !shouldShowExpandButton}>
           {parseTextWithLinks(displayText)}
         </Content>
       </ContentContainer>
-      
+
+      {/* 미디어 갤러리 (이미지가 있는 경우만 표시) */}
+      {tweet.media && tweet.media.length > 0 && (
+        <TwitterMediaGallery media={tweet.media} />
+      )}
+
+      {/* 비디오 임베드 (비디오가 있는 경우만 표시) */}
+      {tweet.hasVideo && <TwitterVideoEmbed tweet={tweet} />}
+
       <Footer $isExpanded={isExpanded}>
         <Timestamp>{formatDate(tweet.createdAt)}</Timestamp>
         {tweet.isTranslated && tweet.textKo && (
           <ToggleButton onClick={handleToggle}>
-            {showOriginal ? '번역 보기' : '원문 보기'}
+            {showOriginal ? "번역 보기" : "원문 보기"}
           </ToggleButton>
         )}
       </Footer>
-      
+
       {shouldShowExpandButton && (
-        <ExpandButton 
+        <ExpandButton
           onClick={handleExpandToggle}
-          className={isExpanded ? 'expanded' : ''}
+          className={isExpanded ? "expanded" : ""}
         >
-          {isExpanded ? '접기' : '더 보기'}
+          {isExpanded ? "접기" : "더 보기"}
         </ExpandButton>
       )}
     </Card>
   );
 };
 
-export default TwitterCard; 
+export default TwitterCard;

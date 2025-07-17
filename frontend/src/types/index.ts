@@ -32,6 +32,15 @@ export interface Tweet {
     replies: number;
   };
   category?: number; // 1~5 카테고리 태깅
+  // 미디어 정보
+  media?: string[]; // 이미지 URL 배열
+  // 비디오 임베드 관련 필드
+  hasVideo?: boolean; // 비디오 포함 여부
+  videoEmbedInfo?: {
+    tweetId: string; // 트위터 게시물 ID
+    username: string; // 작성자 username
+    embedUrl: string; // 임베드용 URL
+  };
 }
 
 // 유튜브 영상 타입

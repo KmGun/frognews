@@ -10,10 +10,10 @@ import { Helmet } from "react-helmet-async";
 import styled from "styled-components";
 import {
   Article,
-  Tweet,
   YouTubeVideo,
   CATEGORIES,
   FeedbackSubmission,
+  Tweet as TweetType,
 } from "../types";
 import { useReadArticles } from "../hooks/useReadArticles";
 import { useAllDataQuery } from "../hooks/useArticlesQuery";
@@ -23,9 +23,11 @@ import Header from "../components/Header";
 import CategoryTags from "../components/CategoryTags";
 import ArticleCard from "../components/ArticleCard";
 import TwitterCard from "../components/TwitterCard";
+import TwitterEmbed from "../components/TwitterEmbed";
 import YouTubeCard from "../components/YouTubeCard";
 import FeedbackButton from "../components/FeedbackButton";
 import FeedbackModal from "../components/FeedbackModal";
+import { Tweet } from "react-tweet";
 
 const MainContainer = styled.div`
   height: 100vh;
@@ -170,7 +172,7 @@ const ErrorMessage = styled.div`
 // 컨텐츠 타입 정의
 type ContentItem = {
   type: "article" | "tweet" | "youtube";
-  data: Article | Tweet | YouTubeVideo;
+  data: Article | TweetType | YouTubeVideo;
   timestamp: Date;
 };
 
@@ -180,9 +182,22 @@ type DateGroup = {
   items: ContentItem[];
 };
 
+// 하드코딩된 트위터 링크 리스트 (테스트용)
+const HARDCODED_TWITTER_LINKS = [
+  "https://x.com/JafarNajafov/status/1945413532142755860",
+  "https://x.com/dr_cintas/status/1945525044529992053",
+];
+
+const HIDE_READ_ARTICLES_KEY = "frognews_hide_read_articles";
+
 const MainPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [hideReadArticles, setHideReadArticles] = useState<boolean>(() => {
+    // localStorage에서 설정 값 불러오기
+    const saved = localStorage.getItem(HIDE_READ_ARTICLES_KEY);
+    return saved === "true";
+  });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -198,6 +213,15 @@ const MainPage: React.FC = () => {
 
   // bottomSheet ref 추가
   const bottomSheetRef = useRef<HTMLDivElement>(null);
+
+  // 읽은 기사 숨기기 설정 토글
+  const handleToggleHideReadArticles = useCallback(() => {
+    setHideReadArticles((prev) => {
+      const newValue = !prev;
+      localStorage.setItem(HIDE_READ_ARTICLES_KEY, newValue.toString());
+      return newValue;
+    });
+  }, []);
 
   // 페이지가 포커스를 받을 때마다 읽은 기사 목록 새로고침
   useEffect(() => {
@@ -255,8 +279,13 @@ const MainPage: React.FC = () => {
       );
     }
 
+    // 읽은 기사 숨기기 옵션이 활성화된 경우 읽은 기사 제외
+    if (hideReadArticles) {
+      filtered = filtered.filter((article) => !isArticleRead(article.id || ""));
+    }
+
     return filtered;
-  }, [articles, selectedCategory]);
+  }, [articles, selectedCategory, hideReadArticles, isArticleRead]);
 
   // 스크롤 위치 저장 (페이지 이탈 시)
   useEffect(() => {
@@ -316,7 +345,7 @@ const MainPage: React.FC = () => {
     });
   };
 
-  const handleTweetClick = (tweet: Tweet) => {
+  const handleTweetClick = (tweet: TweetType) => {
     window.open(tweet.url, "_blank");
   };
 
@@ -480,7 +509,10 @@ const MainPage: React.FC = () => {
           content="AI가 엄선한 최신 기술 뉴스를 간결하게 요약해드립니다."
         />
       </Helmet>
-      <Header />
+      <Header
+        hideReadArticles={hideReadArticles}
+        onToggleHideReadArticles={handleToggleHideReadArticles}
+      />
       <Content>
         <CategoryTags
           categories={CATEGORIES}
@@ -533,10 +565,7 @@ const MainPage: React.FC = () => {
                           </div>
                         )}
                         {item.type === "tweet" && (
-                          <TwitterCard
-                            tweet={item.data as Tweet}
-                            onClick={() => handleTweetClick(item.data as Tweet)}
-                          />
+                          <TwitterCard tweet={item.data as TweetType} />
                         )}
                         {item.type === "youtube" && (
                           <YouTubeCard video={item.data as YouTubeVideo} />
