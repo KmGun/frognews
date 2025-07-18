@@ -13,12 +13,6 @@ const HeaderContent = styled.div`
   padding: 0 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-`;
-
-const LeftSection = styled.div`
-  display: flex;
-  align-items: center;
   gap: 15px;
 `;
 
@@ -55,91 +49,17 @@ const Subtitle = styled.p`
   line-height: 1.2;
 `;
 
-const RightSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-const SettingsButton = styled.button<{ $isActive: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background-color: ${(props) => (props.$isActive ? "#10b981" : "#333")};
-  color: ${(props) => (props.$isActive ? "#ffffff" : "#888")};
-  border: 1px solid ${(props) => (props.$isActive ? "#10b981" : "#555")};
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: ${(props) => (props.$isActive ? "#059669" : "#444")};
-    color: #ffffff;
-    border-color: ${(props) => (props.$isActive ? "#059669" : "#666")};
-  }
-
-  @media (max-width: 768px) {
-    font-size: 12px;
-    padding: 6px 8px;
-    gap: 4px;
-  }
-`;
-
-const SettingsIcon = styled.span`
-  font-size: 16px;
-
-  @media (max-width: 768px) {
-    font-size: 14px;
-  }
-`;
-
-const SettingsText = styled.span`
-  @media (max-width: 480px) {
-    display: none;
-  }
-`;
-
-interface HeaderProps {
-  hideReadArticles?: boolean;
-  onToggleHideReadArticles?: () => void;
-}
-
-const Header: React.FC<HeaderProps> = ({
-  hideReadArticles = false,
-  onToggleHideReadArticles,
-}) => {
+const Header: React.FC = () => {
   return (
     <HeaderContainer>
       <HeaderContent>
-        <LeftSection>
-          <LogoContainer>
-            <LogoImage src="/frognewslogo.png" alt="FrogNews Logo" />
-          </LogoContainer>
-          <TextContainer>
-            <Title>FrogNews</Title>
-            <Subtitle>핵심만 전달하는 AI 뉴스</Subtitle>
-          </TextContainer>
-        </LeftSection>
-
-        {onToggleHideReadArticles && (
-          <RightSection>
-            <SettingsButton
-              $isActive={hideReadArticles}
-              onClick={onToggleHideReadArticles}
-              title={
-                hideReadArticles ? "읽은 기사 다시 보기" : "읽은 기사 숨기기"
-              }
-            >
-              <SettingsIcon>{hideReadArticles ? "👁️" : "🙈"}</SettingsIcon>
-              <SettingsText>
-                {hideReadArticles ? "읽은 기사 보기" : "읽은 기사 숨기기"}
-              </SettingsText>
-            </SettingsButton>
-          </RightSection>
-        )}
+        <LogoContainer>
+          <LogoImage src="/frognewslogo.png" alt="FrogNews Logo" />
+        </LogoContainer>
+        <TextContainer>
+          <Title>FrogNews</Title>
+          <Subtitle>핵심만 전달하는 AI 뉴스</Subtitle>
+        </TextContainer>
       </HeaderContent>
     </HeaderContainer>
   );
